@@ -1,0 +1,36 @@
+VB-CABLE - pacote oficial, embutido sem nenhuma modificação
+==========================================================
+
+Origem:  https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip
+Site:    https://vb-audio.com/Cable/   (www.vb-cable.com)
+Baixado: 2026-09-11
+SHA-256: b950e39f01af1d04ea623c8f6d8eb9b6ea5c477c637295fabf20631c85116bfb
+
+Assinatura digital dos executáveis internos (verificada):
+  CN=BUREL VINCENT Entrepreneur individuel, emissor GlobalSign GCC R45 EV CodeSigning CA 2020
+  Status: Valid
+
+Licença (trecho do readme.txt que vem dentro do próprio pacote)
+--------------------------------------------------------------
+  LIMITATIONS
+
+  As the VB-CABLE is a donationware, it is also allowed
+  to copy and diffuse the VB-CABLE package AS IS without
+  any modification. It is not allowed to integrate the
+  VB-CABLE package in another software installation
+  procedure without Author agreement.
+
+  In case of distribution/diffusion you might mention:
+  1- The origin of VB-CABLE : www.vb-cable.com.
+  2- VB-CABLE is a donationware, all participations are welcome.
+
+O que o nicoPad faz com este arquivo
+-------------------------------------
+Apenas copia e descompacta o pacote original (byte a byte, sem alteração) para
+%LOCALAPPDATA%\nicoPad\cabo-de-audio e abre a pasta. Quem executa o
+VBCABLE_Setup_x64.exe, como administrador, é o usuário — exatamente o que a
+licença permite. O nicoPad não instala o driver por conta própria, porque isso
+seria "integrar o pacote ao procedimento de instalação de outro programa".
+
+Se o pacote embutido não existir (rodando direto do código-fonte), o nicoPad
+baixa o mesmo arquivo do endereço oficial acima e confere o SHA-256 antes de usar.

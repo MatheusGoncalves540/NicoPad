@@ -1,0 +1,14 @@
+# Soundpad - dependências (instaladas em .venv pelo `task setup`)
+
+numpy>=1.24
+sounddevice>=0.4.6
+soundfile>=0.12
+
+# Ícone na bandeja do sistema: fechar a janela sem encerrar o programa.
+pystray>=0.19.5
+pillow>=10.0
+# No Linux a bandeja é falada pelo X11 (Xorg/XWayland).
+python-xlib>=0.33; sys_platform == "linux"
+
+# Usado só pelo `task build` para gerar o .exe.
+pyinstaller>=6.10

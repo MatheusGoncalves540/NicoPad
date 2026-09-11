@@ -1,0 +1,110 @@
+{
+  "AGENTS.md": {
+    "mtime": 1789153362.3265152,
+    "seen": 1789154211.0811694,
+    "ast_hash": "31b65cb31b6d49f93e72c8980797109d",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1789165886.5948358,
+    "seen": 1789165931.068273,
+    "ast_hash": "6d2175474d9d8d809c912df5e04e69a2",
+    "semantic_hash": ""
+  },
+  "Taskfile.yml": {
+    "mtime": 1789164162.3851564,
+    "seen": 1789164468.18694,
+    "ast_hash": "be47f5977fbba7c7e53023a63e69aa12",
+    "semantic_hash": ""
+  },
+  "requirements.txt": {
+    "mtime": 1789165769.349516,
+    "seen": 1789165931.068273,
+    "ast_hash": "3cf51a1452024a694ed45e017e7d13f2",
+    "semantic_hash": ""
+  },
+  "packaging/vbcable/LEIA-ME.txt": {
+    "mtime": 1789163957.7927465,
+    "seen": 1789164468.18694,
+    "ast_hash": "3c596b2ce5b148bf344fbea589fc5668",
+    "semantic_hash": ""
+  },
+  "packaging/logo.py": {
+    "mtime": 1789164023.9586616,
+    "seen": 1789164468.18694,
+    "ast_hash": "ca6f0202dc504c223c26cba958a56fe0",
+    "semantic_hash": ""
+  },
+  "src/nicopad/__init__.py": {
+    "mtime": 1789163949.4157019,
+    "seen": 1789164468.18694,
+    "ast_hash": "81305a0ae6540542d807534714deac38",
+    "semantic_hash": ""
+  },
+  "src/nicopad/__main__.py": {
+    "mtime": 1789163966.4937057,
+    "seen": 1789164468.18694,
+    "ast_hash": "25e9285f050948ed335a418b43c4f7e1",
+    "semantic_hash": ""
+  },
+  "src/nicopad/audio.py": {
+    "mtime": 1789163949.4309754,
+    "seen": 1789164468.18694,
+    "ast_hash": "716c186abd3ab2d67af8373084db7e5f",
+    "semantic_hash": ""
+  },
+  "src/nicopad/cable.py": {
+    "mtime": 1789163949.4435897,
+    "seen": 1789164468.18694,
+    "ast_hash": "2f9eb68fbddc9215dbc7e3f83da569bd",
+    "semantic_hash": ""
+  },
+  "src/nicopad/config.py": {
+    "mtime": 1789164989.064412,
+    "seen": 1789165248.964108,
+    "ast_hash": "e9ee90d3da13ffbc964c1957033d2017",
+    "semantic_hash": ""
+  },
+  "src/nicopad/hotkeys.py": {
+    "mtime": 1789165011.2785532,
+    "seen": 1789165248.964108,
+    "ast_hash": "6346a6c85bf1c3f57d5a7e3dd332b068",
+    "semantic_hash": ""
+  },
+  "src/nicopad/library.py": {
+    "mtime": 1789164989.064412,
+    "seen": 1789165248.964108,
+    "ast_hash": "8218de98b4d370baa35546a9a53a73ac",
+    "semantic_hash": ""
+  },
+  "src/nicopad/profile.py": {
+    "mtime": 1789163949.473769,
+    "seen": 1789164468.18694,
+    "ast_hash": "7877bbabf87ce5ef95f37b27f7deaaa1",
+    "semantic_hash": ""
+  },
+  "src/nicopad/selftest.py": {
+    "mtime": 1789165794.300036,
+    "seen": 1789165931.068273,
+    "ast_hash": "f95c1b2660ea55f42647170687ae31b1",
+    "semantic_hash": ""
+  },
+  "src/nicopad/ui.py": {
+    "mtime": 1789165746.079432,
+    "seen": 1789165931.068273,
+    "ast_hash": "0cfbc63cdde4b5e0d0dfa2b04318ce02",
+    "semantic_hash": ""
+  },
+  "packaging/nicopad.png": {
+    "mtime": 1789164337.1103332,
+    "seen": 1789164468.18694,
+    "ast_hash": "187d291087fa267d336cba5d150c6138",
+    "semantic_hash": ""
+  },
+  "src/nicopad/tray.py": {
+    "mtime": 1789165703.1065917,
+    "seen": 1789165931.068273,
+    "ast_hash": "7131170bc200d07d934acb35ffb6a0ce",
+    "semantic_hash": ""
+  }
+}

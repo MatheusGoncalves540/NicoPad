@@ -1,0 +1,80 @@
+version: "3"
+
+# Tudo o que precisa de Python fica isolado em .venv.
+# Se `py -3.12` não existir na sua máquina, rode: task setup PY=python
+vars:
+  PY:
+    sh: py -3.12 -V >/dev/null 2>&1 && echo "py -3.12" || (py -3 -V >/dev/null 2>&1 && echo "py -3" || echo python)
+  VENV: .venv
+  VENV_PY: "{{.VENV}}/Scripts/python.exe"
+  SRC: src
+  EXE: dist/nicopad.exe
+
+tasks:
+  default:
+    desc: Lista as tarefas disponíveis
+    cmds:
+      - task --list-all
+
+  setup:
+    desc: Cria o .venv e instala as dependências
+    sources:
+      - requirements.txt
+    generates:
+      - "{{.VENV_PY}}"
+    cmds:
+      - "{{.PY}} -m venv {{.VENV}}"
+      - "{{.VENV_PY}} -m pip install --disable-pip-version-check -q -U pip"
+      - "{{.VENV_PY}} -m pip install --disable-pip-version-check -q -r requirements.txt"
+
+  run:
+    desc: Abre o app direto pelo código-fonte
+    deps: [setup]
+    cmds:
+      - "PYTHONPATH={{.SRC}} {{.VENV_PY}} -m nicopad"
+
+  cable:
+    desc: Prepara o instalador oficial do cabo de áudio virtual na sua pasta
+    deps: [setup]
+    cmds:
+      - "PYTHONPATH={{.SRC}} {{.VENV_PY}} -m nicopad --install-cable"
+  test:
+    desc: Verificação automática do código-fonte (não abre a interface)
+    deps: [setup]
+    cmds:
+      - "PYTHONPATH={{.SRC}} {{.VENV_PY}} -m nicopad --selftest"
+
+  logo:
+    desc: Desenha a logo do app (packaging/nicopad.png e .ico)
+    deps: [setup]
+    sources:
+      - packaging/logo.py
+    generates:
+      - packaging/nicopad.png
+      - packaging/nicopad.ico
+    cmds:
+      - "{{.VENV_PY}} packaging/logo.py"
+
+  build:
+    desc: Gera o executável único em dist/nicopad.exe
+    deps: [setup, logo]
+    sources:
+      - "{{.SRC}}/**/*.py"
+      - packaging/nicopad.spec
+    generates:
+      - "{{.EXE}}"
+    cmds:
+      - "{{.VENV_PY}} -m PyInstaller --clean --noconfirm --distpath dist --workpath build packaging/nicopad.spec"
+
+  verify:
+    desc: Roda a verificação dentro do executável compilado
+    deps: [build]
+    cmds:
+      - "./{{.EXE}} --selftest"
+      - cat nicopad-selftest.txt
+
+  clean:
+    desc: Apaga ambiente virtual, build e caches
+    cmds:
+      - rm -rf build dist {{.VENV}} nicopad-selftest.txt
+      - find {{.SRC}} packaging -name __pycache__ -type d -exec rm -rf {} + || true
