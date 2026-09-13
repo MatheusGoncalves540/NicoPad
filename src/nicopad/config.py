@@ -57,6 +57,7 @@ class Settings:
     library: str = ""  # pasta própria; vazio usa a pasta padrão do sistema
     maps: list = field(default_factory=list)
     active: int = 0
+    close_action: str = ""  # "" pergunta sempre; "hide" bandeja; "quit" encerra
 
     def __post_init__(self):
         if not self.maps:
@@ -158,6 +159,7 @@ def load(path=None) -> tuple:
         geometry=str(raw.get("geometry") or "")[:32],
         library_enabled=bool(raw.get("library_enabled", True)),
         library=str(raw.get("library") or ""),
+        close_action=raw.get("close_action") if raw.get("close_action") in ("hide", "quit") else "",
     )
     raw_maps = raw.get("maps")
     if isinstance(raw_maps, list) and raw_maps:

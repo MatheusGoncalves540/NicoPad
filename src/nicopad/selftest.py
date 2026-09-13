@@ -123,12 +123,20 @@ def _extra_checks(check, wav) -> None:
                 cfg.KeyMap("Jogos", [cfg.Binding(path=str(wav), name="b")]),
             ],
             active=1,
+            close_action="hide",
         )
         assert not cfg.save(settings, path), "falhou ao gravar"
         loaded, warning = cfg.load(path)
         assert warning is None, warning
         assert [m.name for m in loaded.maps] == ["Padrão", "Jogos"], loaded.maps
         assert loaded.active == 1 and loaded.bindings[0].name == "b", (loaded.active, loaded.bindings)
+        assert loaded.close_action == "hide", loaded.close_action
+
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw["close_action"] = "sei-la"  # valor estranho no JSON não trava a leitura
+        path.write_text(json.dumps(raw), encoding="utf-8")
+        ignored, _warning = cfg.load(path)
+        assert ignored.close_action == "", ignored.close_action
 
         # active fora do intervalo cai no último mapa válido; com um mapa só, isso é o índice 0.
         raw = json.loads(old.read_text(encoding="utf-8"))
@@ -156,6 +164,14 @@ def _extra_checks(check, wav) -> None:
         assert youtube.check_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") is None
         return "check_url recusa file:/caminho local/vazio e aceita uma URL https"
 
+    def update_versions():
+        from nicopad import updater
+
+        assert updater._parse("v2.0.0") == (2, 0, 0), updater._parse("v2.0.0")
+        assert updater._parse("1.10.0") > updater._parse("1.9.9"), "versão não pode comparar como texto"
+        assert updater._parse("1.0.0") == updater._parse("1.0.0")
+        return "versão comparada numericamente (não como texto), prefixo «v» ignorado"
+
     def tray_icon():
         from nicopad import tray, ui
 
@@ -176,6 +192,7 @@ def _extra_checks(check, wav) -> None:
     check("mapas de teclas", keymaps)
     check("corte do som", trimming)
     check("download do youtube", youtube_url)
+    check("verificação de versão", update_versions)
     check("bandeja do sistema", tray_icon)
 
 

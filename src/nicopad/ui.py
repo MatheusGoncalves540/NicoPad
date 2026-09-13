@@ -13,7 +13,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import sounddevice as sd
 
-from nicopad import cable, config as cfg, library, profile, tray, youtube
+from nicopad import __version__, cable, config as cfg, library, profile, tray, updater, youtube
 from nicopad.audio import (
     AudioEngine,
     find_device,
@@ -175,6 +175,8 @@ class NicoPadApp(tk.Tk):
         self.tray.start()
         self.after(60, self._pump)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+        if getattr(sys, "frozen", False):  # rodando do fonte não tem .exe para trocar
+            self.after(3000, self._check_updates)
 
     # ---------------------------------------------------------------- interface
 
@@ -214,8 +216,24 @@ class NicoPadApp(tk.Tk):
         self.settings_menu.add_command(label="Escolher a pasta dos sons…", command=self._choose_library)
         self.settings_menu.add_command(label="Abrir a pasta dos sons", command=self._open_library)
         self.settings_menu.add_separator()
+        self.close_action_var = tk.StringVar(value=self.settings.close_action)
+        close_menu = tk.Menu(bar, tearoff=False)
+        for label, value in (
+            ("Perguntar sempre", ""),
+            ("Deixar na bandeja", "hide"),
+            ("Encerrar o programa", "quit"),
+        ):
+            close_menu.add_radiobutton(
+                label=label, value=value, variable=self.close_action_var, command=self._set_close_action
+            )
+        self.settings_menu.add_cascade(label="Ao fechar a janela", menu=close_menu)
+        self.settings_menu.add_separator()
         self.settings_menu.add_command(label="Preparar instalador do cabo de áudio", command=self._prepare_cable)
         self.settings_menu.add_command(label="Abrir site do VB-Cable", command=lambda: webbrowser.open(CABLE_URL))
+        self.settings_menu.add_separator()
+        self.settings_menu.add_command(
+            label="Verificar atualizações…", command=lambda: self._check_updates(manual=True)
+        )
         options = ttk.Menubutton(bar, text="Configurações")
         options["menu"] = self.settings_menu
         options.grid(row=0, column=4, padx=(6, 0))
@@ -811,6 +829,93 @@ class NicoPadApp(tk.Tk):
             pass  # se a pasta não abrir, o caminho continua visível na barra de status
         self._flash(f"Execute {setup.name} como administrador e reinicie o PC.   ({folder})", seconds=20)
 
+    def _check_updates(self, manual: bool = False) -> None:
+        """Confere a última release no GitHub em segundo plano (não trava a janela)."""
+        local_queue = queue.Queue()
+
+        def work() -> None:
+            try:
+                local_queue.put(("ok", updater.check()))
+            except Exception as exc:
+                local_queue.put(("error", str(exc)))
+
+        threading.Thread(target=work, daemon=True).start()
+
+        def poll() -> None:
+            try:
+                kind, payload = local_queue.get_nowait()
+            except queue.Empty:
+                self.after(200, poll)
+                return
+            if kind == "error":
+                if manual:
+                    messagebox.showerror("nicoPad", f"Não consegui verificar atualizações.\n\n{payload}")
+                return
+            if payload is None:
+                if manual:
+                    messagebox.showinfo("nicoPad", f"Você já está na versão mais recente ({__version__}).")
+                return
+            self._offer_update(*payload)
+
+        self.after(200, poll)
+
+    def _offer_update(self, version: str, url: str) -> None:
+        if not getattr(sys, "frozen", False):
+            messagebox.showinfo(
+                "nicoPad",
+                f"Versão {version} disponível (você está na {__version__}).\n\n"
+                f"Rodando do código-fonte não dá para atualizar sozinho: baixe em {updater.RELEASES_URL}.",
+            )
+            return
+        if not messagebox.askyesno(
+            "nicoPad",
+            f"Versão {version} disponível (você está na {__version__}).\n\n"
+            "Baixar e atualizar agora? O nicoPad fecha e reabre sozinho.",
+        ):
+            return
+        self._run_update(url)
+
+    def _run_update(self, url: str) -> None:
+        """Baixa o novo .exe com uma janelinha de progresso e reinicia o app nele."""
+        window = tk.Toplevel(self)
+        window.title("Atualizando")
+        window.transient(self)
+        window.resizable(False, False)
+        window.protocol("WM_DELETE_WINDOW", lambda: None)  # a troca já começou; não dá pra cancelar
+        frame = ttk.Frame(window, padding=14)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Baixando atualização…").pack(anchor="w")
+        progress = ttk.Progressbar(frame, mode="indeterminate", length=260)
+        progress.pack(pady=(8, 0))
+        progress.start(12)
+        _center_on(window, self)
+        window.grab_set()
+
+        local_queue = queue.Queue()
+
+        def work() -> None:
+            try:
+                local_queue.put(("ok", updater.download(url)))
+            except Exception as exc:
+                local_queue.put(("error", str(exc)))
+
+        threading.Thread(target=work, daemon=True).start()
+
+        def poll() -> None:
+            try:
+                kind, payload = local_queue.get_nowait()
+            except queue.Empty:
+                self.after(200, poll)
+                return
+            window.destroy()
+            if kind == "error":
+                messagebox.showerror("nicoPad", f"Não consegui baixar a atualização.\n\n{payload}")
+                return
+            self._save()
+            updater.apply_and_restart(payload)
+
+        self.after(200, poll)
+
     # ------------------------------------------------------ configuração do som
 
     def _sound_dialog(self) -> None:
@@ -1213,6 +1318,10 @@ class NicoPadApp(tk.Tk):
             label = f"{label} em {_shorten(self._library_folder(), 44)}"
         self.settings_menu.entryconfigure(0, label=label)
 
+    def _set_close_action(self) -> None:
+        self.settings.close_action = self.close_action_var.get()
+        self._save()
+
     def _toggle_library(self) -> None:
         self.settings.library_enabled = bool(self.library_var.get())
         self._save()
@@ -1328,12 +1437,14 @@ class NicoPadApp(tk.Tk):
     def _apply_settings(self, settings) -> None:
         """Troca a configuração inteira (importar perfil) e reabre o que depende dela."""
         settings.geometry = self.settings.geometry  # o tamanho da janela é de quem importa
+        settings.close_action = self.settings.close_action  # idem: preferência da máquina, não do perfil
         self.settings = settings
         self.sounds = {}
         self.monitor_var.set(bool(settings.monitor_enabled))
         self.mic_var.set(bool(settings.mic_enabled))
         self.volume_var.set(float(settings.volume))
         self.library_var.set(bool(settings.library_enabled))
+        self.close_action_var.set(settings.close_action)
         self._sync_library()
         self._sync_maps()
         self._load_bindings()
@@ -1353,19 +1464,44 @@ class NicoPadApp(tk.Tk):
         if not self.tray.ok:
             self._quit()  # sem bandeja o programa não teria como voltar
             return
-        answer = messagebox.askyesnocancel(
-            "nicoPad",
-            "Fechar o nicoPad ou deixá-lo na bandeja?\n\n"
-            "Sim — vai para a bandeja e continua tocando os sons pelos atalhos.\n"
-            "Não — o programa é encerrado.\n"
-            "Cancelar — a janela continua aberta.",
-        )
-        if answer is None:  # Cancelar
-            return
-        if answer:
+        if self.settings.close_action == "hide":
             self._hide()
-        else:
+        elif self.settings.close_action == "quit":
             self._quit()
+        else:
+            self._ask_close_action()
+
+    def _ask_close_action(self) -> None:
+        """Pergunta com botões dizendo cada opção, e um checkbox para não perguntar de novo."""
+        window = tk.Toplevel(self)
+        window.title("nicoPad")
+        window.transient(self)
+        window.resizable(False, False)
+        frame = ttk.Frame(window, padding=14)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Fechar o nicoPad ou deixá-lo na bandeja?", justify="left").pack(anchor="w")
+
+        remember_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frame, text="Lembrar minha escolha", variable=remember_var).pack(anchor="w", pady=(10, 0))
+
+        def choose(action: str) -> None:
+            if remember_var.get():
+                self.settings.close_action = action
+                self._save_later()
+            window.destroy()
+            if action == "hide":
+                self._hide()
+            else:
+                self._quit()
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", pady=(14, 0))
+        ttk.Button(buttons, text="Deixar na bandeja", command=lambda: choose("hide")).pack(side="left")
+        ttk.Button(buttons, text="Encerrar o programa", command=lambda: choose("quit")).pack(side="left", padx=(6, 0))
+        ttk.Button(buttons, text="Cancelar", command=window.destroy).pack(side="right")
+        window.bind(ESC_KEY, lambda _event: window.destroy())
+        _center_on(window, self)
+        window.grab_set()
 
     def _hide(self) -> None:
         """Tira a janela da frente sem encerrar nada: o programa segue pelos atalhos."""

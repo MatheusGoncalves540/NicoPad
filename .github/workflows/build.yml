@@ -1,0 +1,73 @@
+name: Build
+
+# Versionamento: por padrão sobe o patch (X.Y.Z+1); um commit com "[minor]"
+# na mensagem sobe o minor (zera o patch); um com "[major]" sobe o major
+# (zera minor e patch). "[major]" vence se os dois aparecerem.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: arduino/setup-task@v2
+
+      - name: Calcula a próxima versão
+        id: version
+        shell: bash
+        run: |
+          set -e
+          last=$(git tag --list --sort=-v:refname | head -n1)
+          if [ -z "$last" ]; then
+            last="0.0.0"
+            range="HEAD"
+          else
+            range="$last..HEAD"
+          fi
+          clean="${last#v}"
+          IFS=. read -r major minor patch <<< "$clean"
+          messages=$(git log "$range" --pretty=%B)
+          if grep -qF '[major]' <<< "$messages"; then
+            major=$((major + 1)); minor=0; patch=0
+          elif grep -qF '[minor]' <<< "$messages"; then
+            minor=$((minor + 1)); patch=0
+          else
+            patch=$((patch + 1))
+          fi
+          echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+
+      - name: Grava a versão e cria a tag
+        shell: bash
+        run: |
+          set -e
+          version="${{ steps.version.outputs.version }}"
+          sed -i "s/__version__ = .*/__version__ = \"$version\"/" src/nicopad/__init__.py
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: bump version to $version [skip ci]"
+          git tag "$version"
+          git push origin HEAD:master --tags
+
+      - name: Builda o executável
+        run: task build
+
+      - name: Publica a release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          gh release create "$version" dist/nicopad.exe --title "$version" --generate-notes

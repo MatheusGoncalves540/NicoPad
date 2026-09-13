@@ -31,7 +31,10 @@ EXCLUDES = [
     # bibliotecas pesadas que o app não importa
     "scipy", "matplotlib", "pandas", "cv2", "IPython",
     # ferramentas de desenvolvimento e testes
-    "pytest", "setuptools", "pip", "wheel", "pkg_resources", "distutils",
+    # (NÃO excluir "distutils": no Python 3.12 ele só existe via alias do
+    # setuptools, e o próprio hook do PyInstaller cuida disso; excluir na mão
+    # colide com o alias e quebra o build)
+    "pytest", "setuptools", "pip", "wheel", "pkg_resources",
     "unittest", "doctest", "pydoc", "test", "lib2to3",
     "numpy.f2py", "numpy.distutils", "numpy.testing",
     "tkinter.test", "tkinter.tix", "tkinter.dnd",
