@@ -321,6 +321,7 @@ class NicoPadApp(tk.Tk):
             ("Cortar", self._trim_dialog),
             ("Ouvir", self._preview),
             ("Parar tudo", self._stop_all),
+            ("Tecla p/ parar tudo", self._start_stop_binding),
             ("Remover", self._remove_selected),
         ):
             ttk.Button(toolbar2, text=text, command=command).pack(side="left", padx=(0, 6))
@@ -639,11 +640,18 @@ class NicoPadApp(tk.Tk):
         self.pending = index
         self._update_status()
 
+    def _start_stop_binding(self) -> None:
+        self.pending = "stop"
+        self._update_status()
+
     def _apply_binding(self, event) -> None:
         index, self.pending = self.pending, None
         vk, extended, name = event
         if vk == ESC:
             self._flash("Nenhuma tecla foi definida.")
+            return
+        if index == "stop":
+            self._apply_stop_binding(vk, extended, name)
             return
         binding = self.settings.bindings[index]
         replaced = None
@@ -651,11 +659,25 @@ class NicoPadApp(tk.Tk):
             if other is not binding and other.vk == vk and other.extended == extended:
                 other.vk, other.extended, other.key = 0, False, ""
                 replaced = other.name
+        if self.settings.stop_vk == vk and self.settings.stop_extended == extended:
+            self.settings.stop_vk, self.settings.stop_extended, self.settings.stop_key = 0, False, ""
+            replaced = "Parar tudo"
         binding.vk, binding.extended, binding.key = vk, extended, name
         self._rebuild_keymap()
         self._refresh_rows(select=index)
         self._save()
         self._flash(f"«{binding.name}» agora toca com {name}." + (f"  (a tecla saiu de «{replaced}»)" if replaced else ""))
+
+    def _apply_stop_binding(self, vk: int, extended: bool, name: str) -> None:
+        replaced = None
+        for other in self.settings.bindings:
+            if other.vk == vk and other.extended == extended:
+                other.vk, other.extended, other.key = 0, False, ""
+                replaced = other.name
+        self.settings.stop_vk, self.settings.stop_extended, self.settings.stop_key = vk, extended, name
+        self._rebuild_keymap()
+        self._save()
+        self._flash(f"«Parar tudo» agora atalha com {name}." + (f"  (a tecla saiu de «{replaced}»)" if replaced else ""))
 
     def _rebuild_keymap(self) -> None:
         self.keymap = {(b.vk, b.extended): b for b in self.settings.bindings if b.vk}
@@ -698,6 +720,10 @@ class NicoPadApp(tk.Tk):
         if self.pending is not None:
             self.events.put(("bind", (vk, extended, name)))
             return
+        if self.settings.stop_vk and (vk, extended) == (self.settings.stop_vk, self.settings.stop_extended):
+            self.engine.stop_all()
+            self.events.put(("stopped", None))
+            return
         binding = self.keymap.get((vk, extended))
         if binding is None:
             return
@@ -713,6 +739,8 @@ class NicoPadApp(tk.Tk):
                 kind, payload = self.events.get_nowait()
                 if kind == "bind":
                     self._apply_binding(payload)
+                elif kind == "stopped":
+                    self._flash("Sons interrompidos.")
                 elif kind == "open":
                     self._show()
                 elif kind == "quit":
@@ -738,7 +766,10 @@ class NicoPadApp(tk.Tk):
         self._update_status()
 
     def _update_status(self) -> None:
-        if self.pending is not None and self.pending < len(self.settings.bindings):
+        if self.pending == "stop":
+            current = f"  (atual: {self.settings.stop_key})" if self.settings.stop_key else ""
+            self.status_var.set(f"Pressione a tecla para Parar tudo{current}   (Esc cancela)")
+        elif self.pending is not None and self.pending < len(self.settings.bindings):
             name = self.settings.bindings[self.pending].name
             self.status_var.set(f"Pressione a tecla que vai tocar «{name}»   (Esc cancela)")
         else:

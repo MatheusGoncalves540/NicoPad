@@ -58,6 +58,9 @@ class Settings:
     maps: list = field(default_factory=list)
     active: int = 0
     close_action: str = ""  # "" pergunta sempre; "hide" bandeja; "quit" encerra
+    stop_vk: int = 0  # tecla global de "parar tudo"; 0 = sem tecla definida
+    stop_extended: bool = False
+    stop_key: str = ""
 
     def __post_init__(self):
         if not self.maps:
@@ -149,6 +152,10 @@ def load(path=None) -> tuple:
     if not isinstance(raw, dict):
         return Settings(), f"configuração ignorada ({path})"
     volume = raw.get("volume")
+    try:
+        stop_vk = int(raw.get("stop_vk") or 0)
+    except (TypeError, ValueError):
+        stop_vk = 0
     settings = Settings(
         output=_device(raw.get("output")),
         monitor_enabled=bool(raw.get("monitor_enabled")),
@@ -160,6 +167,9 @@ def load(path=None) -> tuple:
         library_enabled=bool(raw.get("library_enabled", True)),
         library=str(raw.get("library") or ""),
         close_action=raw.get("close_action") if raw.get("close_action") in ("hide", "quit") else "",
+        stop_vk=stop_vk,
+        stop_extended=bool(raw.get("stop_extended")),
+        stop_key=str(raw.get("stop_key") or ""),
     )
     raw_maps = raw.get("maps")
     if isinstance(raw_maps, list) and raw_maps:

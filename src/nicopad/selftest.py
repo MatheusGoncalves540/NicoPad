@@ -320,6 +320,9 @@ def run() -> int:
             settings = cfg.Settings(
                 volume=0.5,
                 geometry="1000x700",
+                stop_vk=0x79,
+                stop_extended=True,
+                stop_key="F10",
                 maps=[
                     cfg.KeyMap(
                         bindings=[
@@ -336,6 +339,7 @@ def run() -> int:
             assert abs(loaded.volume - 0.5) < 1e-9, loaded.volume
             assert loaded.geometry == "1000x700", loaded.geometry
             assert loaded.bindings[0].vk == 70 and loaded.bindings[0].key == "F", loaded.bindings[0]
+            assert (loaded.stop_vk, loaded.stop_extended, loaded.stop_key) == (0x79, True, "F10"), loaded.stop_key
             assert (loaded.bindings[0].gain, loaded.bindings[0].monitor) == (0.25, False), loaded.bindings[0]
             assert abs(loaded.bindings[0].monitor_gain - 0.75) < 1e-9, loaded.bindings[0]
             broken = path.with_name("quebrado.json")
