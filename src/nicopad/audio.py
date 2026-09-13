@@ -134,6 +134,19 @@ def guess_cable(devices: list):
     return None
 
 
+def peaks(data: np.ndarray, columns: int) -> np.ndarray:
+    """(columns, 2) com o mínimo e o máximo de cada faixa: a silhueta da onda."""
+    columns = max(1, int(columns))
+    out = np.zeros((columns, 2), dtype=np.float32)
+    if not len(data):
+        return out
+    mono = data.mean(axis=1)
+    for index, chunk in enumerate(np.array_split(mono, columns)):
+        if len(chunk):
+            out[index] = (chunk.min(), chunk.max())
+    return out
+
+
 def resample(data: np.ndarray, source_rate: float, target_rate: float) -> np.ndarray:
     """Ajusta a taxa por interpolação linear.
 
@@ -191,11 +204,22 @@ def load_sound(
     gain: float = 1.0,
     monitor: bool = True,
     monitor_gain: float = 1.0,
+    start: float = 0.0,
+    end: float = 0.0,
 ) -> Sound:
-    """Carrega wav/mp3/ogg/flac/opus/aiff para a memória, sempre estéreo."""
+    """Carrega wav/mp3/ogg/flac/opus/aiff para a memória, sempre estéreo.
+
+    `start`/`end` aparam o som em segundos (`end` 0 = até o fim do arquivo); o corte é
+    aplicado antes de normalizar canais, então `Sound.data` já nasce aparado.
+    """
     data, samplerate = sf.read(str(path), dtype="float32", always_2d=True)
     if not len(data):
         raise ValueError("arquivo de áudio vazio")
+    first = max(0, int(start * samplerate))
+    last = min(len(data), int(end * samplerate)) if end else len(data)
+    if last - first < 1:  # corte inválido (arquivo trocado, JSON editado à mão): toca inteiro
+        first, last = 0, len(data)
+    data = data[first:last]
     if data.shape[1] > CHANNELS:
         data = data[:, :CHANNELS]
     elif data.shape[1] < CHANNELS:

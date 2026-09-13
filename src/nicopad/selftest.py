@@ -6,12 +6,14 @@ Sai com código 1 se algo falhar e grava o relatório em nicopad-selftest.txt.
 
 from __future__ import annotations
 
+import json
 import math
 import struct
 import sys
 import tempfile
 import time
 import wave
+import zipfile
 from pathlib import Path
 
 REPORT = "nicopad-selftest.txt"
@@ -35,8 +37,8 @@ def _extra_checks(check, wav) -> None:
     """Verificações das partes novas: lista de aparelhos, pasta dos sons e perfis."""
     import numpy as np
 
-    from nicopad import config as cfg, library, profile
-    from nicopad.audio import Device, Mixer, Sound, visible_devices
+    from nicopad import config as cfg, library, profile, youtube
+    from nicopad.audio import Device, Mixer, Sound, load_sound, peaks, visible_devices
 
     folder = Path(wav).parent
 
@@ -78,25 +80,81 @@ def _extra_checks(check, wav) -> None:
         return "pasta padrão, cópia reaproveitada, renomeada quando é diferente e nome novo no arquivo"
 
     def profile_roundtrip():
+        shared = cfg.Binding(
+            path=str(wav), name="tom", vk=70, key="F", gain=0.5, monitor=False, monitor_gain=0.3, start=0.05, end=0.15
+        )
         settings = cfg.Settings(
             volume=0.4,
-            bindings=[
-                cfg.Binding(path=str(wav), name="tom", vk=70, key="F", gain=0.5, monitor=False, monitor_gain=0.3),
-                cfg.Binding(path=str(folder / "nao-existe.wav"), name="sumiu"),
+            maps=[
+                cfg.KeyMap("Padrão", [shared, cfg.Binding(path=str(folder / "nao-existe.wav"), name="sumiu")]),
+                cfg.KeyMap("Jogos", [cfg.Binding(path=str(wav), name="tom2", vk=71, key="G")]),
             ],
         )
         package = folder / "perfil.zip"
         count, missing = profile.export(settings, package)
-        assert count == 1 and missing == ["sumiu"], (count, missing)
+        assert count == 2 and missing == ["sumiu"], (count, missing)
+        with zipfile.ZipFile(package) as archive:
+            sons = [n for n in archive.namelist() if n.startswith(f"{profile.SOUNDS}/")]
+            assert len(sons) == 1, sons  # o mesmo arquivo nos dois mapas = uma cópia só no zip
         restored, imported, absent = profile.load(package, folder / "perfil")
-        assert (imported, absent) == (1, []), (imported, absent)
+        assert (imported, absent) == (2, []), (imported, absent)
         assert not restored.geometry, restored.geometry
-        binding = restored.bindings[0]
-        assert binding.vk == 70 and binding.key == "F", binding
-        assert (binding.gain, binding.monitor, binding.monitor_gain) == (0.5, False, 0.3), binding
-        assert Path(binding.path).parent == (folder / "perfil").resolve(), binding.path
-        assert Path(binding.path).read_bytes() == Path(wav).read_bytes(), "o som do perfil saiu diferente"
-        return "sons, teclas e volumes do perfil voltaram inteiros"
+        assert len(restored.maps) == 2, restored.maps
+        first, second = restored.maps[0].bindings[0], restored.maps[1].bindings[0]
+        assert first.vk == 70 and first.key == "F", first
+        assert (first.gain, first.monitor, first.monitor_gain) == (0.5, False, 0.3), first
+        assert (first.start, first.end) == (0.05, 0.15), first
+        assert Path(first.path) == Path(second.path), "os dois mapas deveriam apontar para a mesma cópia"
+        assert Path(first.path).parent == (folder / "perfil").resolve(), first.path
+        assert Path(first.path).read_bytes() == Path(wav).read_bytes(), "o som do perfil saiu diferente"
+        return "dois mapas, som compartilhado numa cópia só, com corte preservado"
+
+    def keymaps():
+        old = folder / "formato-antigo.json"
+        old.write_text(json.dumps({"bindings": [{"path": str(wav), "name": "legado"}]}), encoding="utf-8")
+        migrated, _warning = cfg.load(old)
+        assert len(migrated.maps) == 1 and migrated.maps[0].name == "Padrão", migrated.maps
+        assert migrated.bindings[0].name == "legado", migrated.bindings
+
+        path = folder / "dois-mapas.json"
+        settings = cfg.Settings(
+            maps=[
+                cfg.KeyMap("Padrão", [cfg.Binding(path=str(wav), name="a")]),
+                cfg.KeyMap("Jogos", [cfg.Binding(path=str(wav), name="b")]),
+            ],
+            active=1,
+        )
+        assert not cfg.save(settings, path), "falhou ao gravar"
+        loaded, warning = cfg.load(path)
+        assert warning is None, warning
+        assert [m.name for m in loaded.maps] == ["Padrão", "Jogos"], loaded.maps
+        assert loaded.active == 1 and loaded.bindings[0].name == "b", (loaded.active, loaded.bindings)
+
+        # active fora do intervalo cai no último mapa válido; com um mapa só, isso é o índice 0.
+        raw = json.loads(old.read_text(encoding="utf-8"))
+        raw["active"] = 99
+        old.write_text(json.dumps(raw), encoding="utf-8")
+        fixed, _warning = cfg.load(old)
+        assert fixed.active == 0, fixed.active
+        return "formato antigo migra para «Padrão», dois mapas vão e voltam, active fora do intervalo cai em 0"
+
+    def trimming():
+        clip = load_sound(wav, start=0.05, end=0.15)
+        assert abs(len(clip.data) / clip.samplerate - 0.1) < 0.01, clip.data.shape
+        whole = load_sound(wav)
+        inverted = load_sound(wav, start=0.15, end=0.05)  # corte absurdo: toca inteiro
+        assert len(inverted.data) == len(whole.data), (len(inverted.data), len(whole.data))
+        table = peaks(whole.data, 100)
+        assert table.shape == (100, 2), table.shape
+        assert abs(float(table.max()) - float(whole.data.max())) < 1e-6, (table.max(), whole.data.max())
+        return "corte aplicado na carga, corte inválido toca o som inteiro, peaks() bate com o pico do sinal"
+
+    def youtube_url():
+        assert youtube.check_url("file:///c:/x.mp3") is not None
+        assert youtube.check_url(str(folder / "musica.mp3")) is not None
+        assert youtube.check_url("") is not None
+        assert youtube.check_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") is None
+        return "check_url recusa file:/caminho local/vazio e aceita uma URL https"
 
     def tray_icon():
         from nicopad import tray, ui
@@ -115,6 +173,9 @@ def _extra_checks(check, wav) -> None:
     check("volume por som", sound_levels)
     check("pasta dos sons", sounds_folder)
     check("perfil (.zip)", profile_roundtrip)
+    check("mapas de teclas", keymaps)
+    check("corte do som", trimming)
+    check("download do youtube", youtube_url)
     check("bandeja do sistema", tray_icon)
 
 
@@ -242,9 +303,13 @@ def run() -> int:
             settings = cfg.Settings(
                 volume=0.5,
                 geometry="1000x700",
-                bindings=[
-                    cfg.Binding(
-                        path=str(wav), name="tom", vk=70, key="F", gain=0.25, monitor=False, monitor_gain=0.75
+                maps=[
+                    cfg.KeyMap(
+                        bindings=[
+                            cfg.Binding(
+                                path=str(wav), name="tom", vk=70, key="F", gain=0.25, monitor=False, monitor_gain=0.75
+                            )
+                        ]
                     )
                 ],
             )

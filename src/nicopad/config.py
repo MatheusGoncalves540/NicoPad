@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -33,6 +34,14 @@ class Binding:
     gain: float = 1.0  # volume deste som no microfone
     monitor: bool = True  # este som toca também no meu fone?
     monitor_gain: float = 1.0  # volume deste som no meu fone
+    start: float = 0.0  # segundos aparados do começo
+    end: float = 0.0  # segundo onde o som acaba; 0 = até o fim do arquivo
+
+
+@dataclass
+class KeyMap:
+    name: str = "Padrão"
+    bindings: list = field(default_factory=list)
 
 
 @dataclass
@@ -46,7 +55,17 @@ class Settings:
     geometry: str = ""
     library_enabled: bool = True  # guardar uma cópia dos sons em pasta própria
     library: str = ""  # pasta própria; vazio usa a pasta padrão do sistema
-    bindings: list = field(default_factory=list)
+    maps: list = field(default_factory=list)
+    active: int = 0
+
+    def __post_init__(self):
+        if not self.maps:
+            self.maps = [KeyMap()]
+        self.active = max(0, min(int(self.active or 0), len(self.maps) - 1))
+
+    @property
+    def bindings(self) -> list:  # o mapa ativo; `maps` é o que vai para o JSON
+        return self.maps[self.active].bindings
 
 
 def _device(raw) -> dict:
@@ -62,6 +81,14 @@ def _level(value, default: float = 1.0) -> float:
     except (TypeError, ValueError):
         return default
 
+
+def _seconds(value) -> float:
+    """Segundos (>= 0); qualquer coisa não-finita ou negativa vira 0."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return seconds if math.isfinite(seconds) and seconds >= 0 else 0.0
 
 
 def _binding(raw):
@@ -80,7 +107,16 @@ def _binding(raw):
         gain=_level(raw.get("gain")),
         monitor=bool(raw.get("monitor", True)),
         monitor_gain=_level(raw.get("monitor_gain")),
+        start=_seconds(raw.get("start")),
+        end=_seconds(raw.get("end")),
     )
+
+
+def _keymap(raw) -> KeyMap:
+    if not isinstance(raw, dict):
+        return KeyMap()
+    bindings = [item for item in (_binding(entry) for entry in raw.get("bindings") or []) if item]
+    return KeyMap(name=str(raw.get("name") or "Padrão"), bindings=bindings)
 
 
 def _keep_broken(path: Path) -> Path:
@@ -123,7 +159,15 @@ def load(path=None) -> tuple:
         library_enabled=bool(raw.get("library_enabled", True)),
         library=str(raw.get("library") or ""),
     )
-    settings.bindings = [item for item in (_binding(entry) for entry in raw.get("bindings") or []) if item]
+    raw_maps = raw.get("maps")
+    if isinstance(raw_maps, list) and raw_maps:
+        settings.maps = [_keymap(entry) for entry in raw_maps]
+    elif isinstance(raw.get("bindings"), list) and raw["bindings"]:
+        migrated = [item for item in (_binding(entry) for entry in raw["bindings"]) if item]
+        settings.maps = [KeyMap("Padrão", migrated)]
+    else:
+        settings.maps = [KeyMap()]
+    settings.active = max(0, min(int(raw.get("active") or 0), len(settings.maps) - 1))
     return settings, None
 
 

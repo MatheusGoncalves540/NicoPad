@@ -10,7 +10,7 @@ SRC = os.path.join(ROOT, "src")
 
 # As DLLs nativas (PortAudio e libsndfile) vivem dentro desses pacotes.
 datas, binaries, hiddenimports = [], [], []
-for package in ("sounddevice", "soundfile", "_sounddevice_data", "_soundfile_data"):
+for package in ("sounddevice", "soundfile", "_sounddevice_data", "_soundfile_data", "yt_dlp"):
     try:
         collected = collect_all(package)
     except Exception:

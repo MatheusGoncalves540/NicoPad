@@ -91,6 +91,36 @@ A logo do **nicoPad** fica num canto e, no outro, três coisas:
 A tecla de cada som aparece com o nome dela (`Shift direito`, `F1`, `/`) — os atalhos antigos que
 ficaram como `VK 0x…` são renomeados sozinhos ao abrir o app.
 
+## Vários mapas de teclas (mapKeys)
+
+Cada som e tecla mora dentro de um **mapa**: o quadro «Sons» tem um seletor **Mapa** (dropdown)
+com os botões **Novo**, **Renomear** e **Excluir** ao lado. Trocar de mapa troca só os sons e as
+teclas da lista — dispositivos de áudio, volume geral e pasta dos sons continuam valendo para
+todos os mapas.
+
+- **Novo** pede um nome e começa um mapa vazio.
+- **Excluir** tira o mapa e os sons dele da lista, mas **não apaga nenhum arquivo do disco**
+  (útil quando o mesmo som também está em outro mapa). Não é possível excluir o único mapa.
+
+## Baixar um som do YouTube
+
+O botão **Baixar do YouTube**, na barra do quadro «Sons», baixa o áudio de um vídeo direto para
+a pasta dos sons. Cole a URL, clique em **Baixar** e acompanhe a barra de progresso; o som
+aparece na lista pronto para receber uma tecla.
+
+> O download precisa do **ffmpeg** instalado na máquina (o nicoPad não instala ele sozinho).
+> Sem o ffmpeg, o modal avisa em vermelho e oferece **Abrir site do ffmpeg**, em vez de tentar
+> baixar ou salvar o áudio num formato que o app não conseguiria abrir depois.
+
+## Cortar um som
+
+O botão **Cortar** (na barra do quadro «Sons» e também dentro de **Configurar som**) abre uma
+janela com a forma de onda do áudio e duas alças arrastáveis para marcar onde ele começa e
+termina. **Ouvir trecho** toca só o pedaço marcado; **Tudo** volta a usar o arquivo inteiro.
+
+O corte é **não destrutivo**: só o início e o fim (em segundos) ficam gravados no
+`nicopad.json` — o arquivo de som original nunca é alterado ou reescrito.
+
 ## Cada som tem a sua configuração
 
 Duplo clique em um som (ou **Configurar som**) abre a janela daquele som:
@@ -125,10 +155,11 @@ quando ele está nessa pasta. Os seus arquivos originais nunca são tocados, e d
 
 No menu **Perfis**:
 
-- **Exportar perfil…** gera um `.zip` com a configuração (sons, teclas, volumes, dispositivos)
-  e os arquivos de som. Sons cujo arquivo não existe mais ficam de fora e são avisados.
-- **Importar perfil…** pergunta a pasta onde descompactar os sons e substitui a configuração
-  atual pela do perfil — som, tecla e volumes voltam como estavam.
+- **Exportar perfil…** gera um `.zip` com **todos os mapas de teclas** (sons, teclas, volumes,
+  dispositivos) e os arquivos de som — um som usado em mais de um mapa entra uma vez só no
+  arquivo. Sons cujo arquivo não existe mais ficam de fora e são avisados.
+- **Importar perfil…** pergunta a pasta onde descompactar os sons e substitui **todos os mapas**
+  atuais pelos do perfil — sons, teclas e volumes voltam como estavam.
 
 ## Lista de dispositivos enxuta
 
@@ -215,7 +246,8 @@ src/nicopad/
   ui.py         janela do Tkinter: barra superior, lista de sons, busca e configuração por som
   audio.py      dispositivos, sons na memória, mistura e passa-voz do microfone
   library.py    pasta própria dos sons (cópia sem sobrescrever nada)
-  profile.py    perfil: sons + configuração em um .zip
+  profile.py    perfil: sons + configuração (todos os mapas) em um .zip
+  youtube.py    download de áudio do YouTube (yt-dlp); check_url é o limite de confiança
   hotkeys.py    hook global de teclado do Windows (só ctypes, sem dependências)
   tray.py       ícone na bandeja do sistema: abrir a janela e encerrar o app
   config.py     configuração em JSON

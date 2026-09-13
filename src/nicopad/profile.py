@@ -21,28 +21,37 @@ SOUNDS = "sons"
 
 
 def export(settings, target) -> tuple:
-    """Grava a configuração e os arquivos de som em um .zip.
+    """Grava a configuração (todos os mapas) e os arquivos de som em um .zip.
 
+    Dois mapas que apontam para o mesmo arquivo geram uma cópia só no zip.
     Devolve (sons gravados, nomes que não existem mais no disco).
     """
     payload = asdict(settings)
     missing = []
-    kept = []
     used = set()
+    written = {}  # caminho normalizado -> nome já gravado no zip
+    total = 0
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
-        for entry, binding in zip(payload["bindings"], settings.bindings):
-            source = Path(binding.path)
-            if not source.is_file():
-                missing.append(binding.name or source.name)
-                continue
-            name = _free_name(used, source.name)
-            used.add(name.casefold())
-            archive.write(source, f"{SOUNDS}/{name}")
-            entry["profile_path"] = name
-            kept.append(entry)
-        payload["bindings"] = kept
+        for raw_map, keymap in zip(payload["maps"], settings.maps):
+            kept = []
+            for entry, binding in zip(raw_map["bindings"], keymap.bindings):
+                source = Path(binding.path)
+                if not source.is_file():
+                    missing.append(binding.name or source.name)
+                    continue
+                key = str(source.resolve())
+                name = written.get(key)
+                if name is None:
+                    name = _free_name(used, source.name)
+                    used.add(name.casefold())
+                    archive.write(source, f"{SOUNDS}/{name}")
+                    written[key] = name
+                entry["profile_path"] = name
+                kept.append(entry)
+            raw_map["bindings"] = kept
+            total += len(kept)
         archive.writestr(MANIFEST, json.dumps(payload, indent=2, ensure_ascii=False))
-    return len(kept), missing
+    return total, missing
 
 
 def load(source, folder) -> tuple:
@@ -55,23 +64,28 @@ def load(source, folder) -> tuple:
         if not isinstance(payload, dict):
             raise ValueError("o perfil não tem configuração")
         found = _extract_sounds(archive, Path(folder))
-    bindings = []
     missing = []
-    for entry in payload.get("bindings") or []:
-        if not isinstance(entry, dict):
+    imported = 0
+    for raw_map in payload.get("maps") or []:
+        if not isinstance(raw_map, dict):
             continue
-        name = Path(str(entry.get("profile_path") or entry.get("path") or "")).name
-        local = found.get(name)
-        if local is None:
-            missing.append(name)
-            continue
-        entry = dict(entry, path=str(local))
-        entry.pop("profile_path", None)
-        bindings.append(entry)
-    payload["bindings"] = bindings
+        bindings = []
+        for entry in raw_map.get("bindings") or []:
+            if not isinstance(entry, dict):
+                continue
+            name = Path(str(entry.get("profile_path") or entry.get("path") or "")).name
+            local = found.get(name)
+            if local is None:
+                missing.append(name)
+                continue
+            entry = dict(entry, path=str(local))
+            entry.pop("profile_path", None)
+            bindings.append(entry)
+        raw_map["bindings"] = bindings
+        imported += len(bindings)
     settings, _warning = _settings(payload)
     settings.geometry = ""  # o tamanho da janela é de quem importa, não do perfil
-    return settings, len(bindings), missing
+    return settings, imported, missing
 
 
 def _settings(payload) -> tuple:

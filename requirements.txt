@@ -10,5 +10,8 @@ pillow>=10.0
 # No Linux a bandeja é falada pelo X11 (Xorg/XWayland).
 python-xlib>=0.33; sys_platform == "linux"
 
+# Baixar áudio do YouTube direto pela URL (precisa de ffmpeg instalado à parte).
+yt-dlp>=2024.8.6
+
 # Usado só pelo `task build` para gerar o .exe.
 pyinstaller>=6.10

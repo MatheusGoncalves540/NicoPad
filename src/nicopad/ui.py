@@ -5,14 +5,15 @@ from __future__ import annotations
 import base64
 import queue
 import sys
+import threading
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import sounddevice as sd
 
-from nicopad import cable, config as cfg, library, profile, tray
+from nicopad import cable, config as cfg, library, profile, tray, youtube
 from nicopad.audio import (
     AudioEngine,
     find_device,
@@ -20,6 +21,7 @@ from nicopad.audio import (
     is_virtual_cable,
     list_devices,
     load_sound,
+    peaks,
     visible_devices,
 )
 from nicopad.hotkeys import KeyboardHook, key_name
@@ -29,6 +31,7 @@ AUDIO_TYPES = [
     ("Todos os arquivos", "*.*"),
 ]
 CABLE_URL = "https://vb-audio.com/Cable/"
+FFMPEG_URL = "https://ffmpeg.org/download.html"
 ESC = 0x1B
 COMBO = "<<ComboboxSelected>>"
 ESC_KEY = "<Escape>"
@@ -160,6 +163,7 @@ class NicoPadApp(tk.Tk):
         self.minsize(*WINDOW_MIN)
         self.geometry(_window_size(self.settings.geometry))
         self._build()
+        self._sync_maps()
         self._sync_library()
         self._reload_devices()
         self._load_bindings()
@@ -264,22 +268,47 @@ class NicoPadApp(tk.Tk):
         sounds = ttk.LabelFrame(self, text="Sons", padding=(10, 6))
         sounds.grid(row=2, column=0, sticky="nsew", padx=10)
         sounds.columnconfigure(0, weight=1)
-        sounds.rowconfigure(2, weight=1)
+        sounds.rowconfigure(4, weight=1)
+
+        maps_bar = ttk.Frame(sounds)
+        maps_bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        maps_bar.columnconfigure(1, weight=1)
+        ttk.Label(maps_bar, text="Mapa").grid(row=0, column=0, padx=(0, 8))
+        self.map_box = ttk.Combobox(maps_bar, state="readonly")
+        self.map_box.grid(row=0, column=1, sticky="ew")
+        self.map_box.bind(COMBO, lambda _event: self._switch_map())
+        for column, (text, command) in enumerate(
+            (
+                ("Novo", self._new_map),
+                ("Renomear", self._rename_map),
+                ("Excluir", self._delete_map),
+            ),
+            start=2,
+        ):
+            ttk.Button(maps_bar, text=text, width=10, command=command).grid(row=0, column=column, padx=(6, 0))
 
         toolbar = ttk.Frame(sounds)
-        toolbar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        toolbar.grid(row=1, column=0, columnspan=2, sticky="ew")
         for text, command in (
             ("Adicionar som", self._add_sounds),
+            ("Baixar do YouTube", self._youtube_dialog),
             ("Configurar som", self._sound_dialog),
             ("Definir tecla", self._start_binding),
+        ):
+            ttk.Button(toolbar, text=text, command=command).pack(side="left", padx=(0, 6))
+
+        toolbar2 = ttk.Frame(sounds)
+        toolbar2.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 6))
+        for text, command in (
+            ("Cortar", self._trim_dialog),
             ("Ouvir", self._preview),
             ("Parar tudo", self._stop_all),
             ("Remover", self._remove_selected),
         ):
-            ttk.Button(toolbar, text=text, command=command).pack(side="left", padx=(0, 6))
+            ttk.Button(toolbar2, text=text, command=command).pack(side="left", padx=(0, 6))
 
         search = ttk.Frame(sounds)
-        search.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        search.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         search.columnconfigure(1, weight=1)
         ttk.Label(search, text="Buscar").grid(row=0, column=0, sticky="w", padx=(0, 8))
         self.search_entry = ttk.Entry(search, textvariable=self.search_var)
@@ -299,9 +328,9 @@ class NicoPadApp(tk.Tk):
         ):
             self.tree.heading(column, text=title)
             self.tree.column(column, width=width, minwidth=70, stretch=stretch, anchor="w")
-        self.tree.grid(row=2, column=0, sticky="nsew")
+        self.tree.grid(row=4, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(sounds, orient="vertical", command=self.tree.yview)
-        scroll.grid(row=2, column=1, sticky="ns")
+        scroll.grid(row=4, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=scroll.set)
         self.tree.bind("<Double-1>", lambda _event: self._sound_dialog())
         self.tree.bind("<Return>", lambda _event: self._preview())
@@ -404,9 +433,73 @@ class NicoPadApp(tk.Tk):
         self.engine.set_volume(volume)
         self._save_later()
 
+    # ------------------------------------------------------------------- mapKeys
+
+    def _sync_maps(self) -> None:
+        self.map_box["values"] = [keymap.name for keymap in self.settings.maps]
+        self.map_box.current(self.settings.active)
+
+    def _switch_map(self) -> None:
+        # PONYTAIL: só o mapa ativo fica na memória; trocar de mapa recarrega os arquivos do
+        # disco. Carregar sob demanda no primeiro toque, se listas grandes virarem rotina.
+        self.settings.active = self.map_box.current()
+        self.sounds = {}
+        self._load_bindings()
+        self._save()
+        self._flash(f"Mapa «{self.settings.maps[self.settings.active].name}» ativo.")
+
+    def _new_map(self) -> None:
+        self.typing = True
+        name = simpledialog.askstring("Novo mapa", "Nome do mapa:", parent=self)
+        self.typing = False
+        name = (name or "").strip()
+        if not name:
+            return
+        self.settings.maps.append(cfg.KeyMap(name=name))
+        self.settings.active = len(self.settings.maps) - 1
+        self._sync_maps()
+        self.sounds = {}
+        self._load_bindings()
+        self._save()
+        self._flash(f"Mapa «{name}» criado.")
+
+    def _rename_map(self) -> None:
+        current = self.settings.maps[self.settings.active]
+        self.typing = True
+        name = simpledialog.askstring("Renomear mapa", "Novo nome:", initialvalue=current.name, parent=self)
+        self.typing = False
+        name = (name or "").strip()
+        if not name or name == current.name:
+            return
+        current.name = name
+        self._sync_maps()
+        self._save()
+        self._flash(f"Mapa renomeado para «{name}».")
+
+    def _delete_map(self) -> None:
+        if len(self.settings.maps) <= 1:
+            self._flash("Não é possível excluir o único mapa.")
+            return
+        current = self.settings.maps[self.settings.active]
+        if not messagebox.askyesno(
+            "nicoPad",
+            f"Excluir o mapa «{current.name}» e seus {len(current.bindings)} som(ns) da lista?\n\n"
+            "Os arquivos de som não são apagados do disco.",
+        ):
+            return
+        index = self.settings.active
+        self.settings.maps.pop(index)
+        self.settings.active = min(index, len(self.settings.maps) - 1)
+        self._sync_maps()
+        self.sounds = {}
+        self._load_bindings()
+        self._save()
+        self._flash(f"Mapa «{current.name}» excluído.")
+
     # --------------------------------------------------------------------- sons
 
     def _load_bindings(self) -> None:
+        self.pending = None  # troca de mapa cancela uma tecla pendente: o índice era do mapa anterior
         for binding in self.settings.bindings:
             if binding.vk and binding.key.startswith("VK "):
                 # Nome gravado por uma versão antiga, quando o Windows não sabia a tecla.
@@ -418,6 +511,8 @@ class NicoPadApp(tk.Tk):
                     gain=binding.gain,
                     monitor=binding.monitor,
                     monitor_gain=binding.monitor_gain,
+                    start=binding.start,
+                    end=binding.end,
                 )
             except Exception:
                 pass  # a linha já aparece marcada como «arquivo não encontrado»
@@ -476,7 +571,13 @@ class NicoPadApp(tk.Tk):
             self._flash("Escolha um som na lista para remover.")
             return
         binding = self.settings.bindings[index]
-        own_copy = library.inside(binding.path, self._library_folder())
+        elsewhere = any(
+            _key(b.path) == _key(binding.path)
+            for m in self.settings.maps
+            for b in m.bindings
+            if b is not binding
+        )
+        own_copy = library.inside(binding.path, self._library_folder()) and not elsewhere
         if own_copy and not messagebox.askokcancel(
             "nicoPad",
             f"Remover «{binding.name}» e apagar o arquivo da pasta dos sons?\n\n{binding.path}",
@@ -783,6 +884,10 @@ class NicoPadApp(tk.Tk):
             self.pending = index
             self._update_status()
 
+        def trim() -> None:
+            close()
+            self._trim_dialog()
+
         ttk.Label(frame, text="Volume no microfone").grid(row=2, column=0, sticky="w", padx=(0, 8))
         ttk.Scale(
             frame,
@@ -806,6 +911,7 @@ class NicoPadApp(tk.Tk):
         buttons.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(14, 0))
         ttk.Button(buttons, text="Ouvir", command=lambda: self.engine.preview(sound)).pack(side="left")
         ttk.Button(buttons, text="Definir tecla", command=bind_key).pack(side="left", padx=(6, 0))
+        ttk.Button(buttons, text="Cortar", command=trim).pack(side="left", padx=(6, 0))
         ttk.Button(buttons, text="Fechar", command=close).pack(side="right")
         window.protocol("WM_DELETE_WINDOW", close)
         window.bind(ESC_KEY, lambda _event: close())
@@ -834,6 +940,266 @@ class NicoPadApp(tk.Tk):
         self._save()
         self._flash(f"Som renomeado para «{name}».")
 
+    # -------------------------------------------------------------- youtube
+
+    def _youtube_dialog(self) -> None:
+        """Baixa um áudio do YouTube direto para a pasta dos sons."""
+        window = tk.Toplevel(self)
+        window.title("Baixar do YouTube")
+        window.transient(self)
+        window.resizable(False, False)
+        frame = ttk.Frame(window, padding=14)
+        frame.pack(fill="both", expand=True)
+        frame.columnconfigure(0, weight=1)
+
+        if youtube.has_ffmpeg() is None:
+            ttk.Label(
+                frame,
+                text="O download precisa do ffmpeg instalado, e ele não foi encontrado neste PC.",
+                foreground="#b00020",
+                wraplength=360,
+                justify="left",
+            ).grid(row=0, column=0, sticky="w")
+            buttons = ttk.Frame(frame)
+            buttons.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+            ttk.Button(buttons, text="Abrir site do ffmpeg", command=lambda: webbrowser.open(FFMPEG_URL)).pack(
+                side="left"
+            )
+            ttk.Button(buttons, text="Fechar", command=window.destroy).pack(side="right")
+            window.bind(ESC_KEY, lambda _event: window.destroy())
+            _center_on(window, self)
+            window.grab_set()
+            return
+
+        ttk.Label(frame, text="URL do vídeo").grid(row=0, column=0, sticky="w")
+        url_var = tk.StringVar()
+        url_entry = ttk.Entry(frame, textvariable=url_var, width=48)
+        url_entry.grid(row=1, column=0, sticky="ew", pady=(2, 10))
+        url_entry.focus_set()
+        self._quiet_while_typing(url_entry)
+
+        progress = ttk.Progressbar(frame, mode="determinate", maximum=100)
+        progress.grid(row=2, column=0, sticky="ew")
+        status_var = tk.StringVar()
+        ttk.Label(frame, textvariable=status_var, foreground="#555555").grid(row=3, column=0, sticky="w", pady=(4, 10))
+
+        local_queue = queue.Queue()  # fila própria do modal: some com ele, não encosta em self.events
+        active = {"download": False}
+
+        def start_download() -> None:
+            url = url_var.get().strip()
+            reason = youtube.check_url(url)
+            if reason:
+                status_var.set(reason)
+                return
+            active["download"] = True
+            download_button.configure(state="disabled")
+            url_entry.configure(state="disabled")
+            status_var.set("Baixando…")
+
+            def work() -> None:
+                try:
+                    path = youtube.download(url, self._library_folder(), lambda f, t: local_queue.put(("progress", f, t)))
+                    local_queue.put(("done", str(path)))
+                except Exception as exc:
+                    local_queue.put(("error", str(exc)))
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def finish(path: str) -> None:
+            active["download"] = False
+            self.typing = False
+            if self._add_sound(path):
+                self.engine.prepare(self.sounds.values())
+                self._refresh_rows(select=len(self.settings.bindings) - 1)
+                self._save()
+                self._flash(f"«{Path(path).stem}» baixado e adicionado — agora clique em «Definir tecla».")
+            window.destroy()
+
+        def poll() -> None:
+            try:
+                while True:
+                    kind, *payload = local_queue.get_nowait()
+                    if kind == "progress":
+                        fraction, text = payload
+                        progress["value"] = fraction * 100
+                        status_var.set(text)
+                    elif kind == "done":
+                        finish(payload[0])
+                        return
+                    elif kind == "error":
+                        active["download"] = False
+                        status_var.set(f"Erro: {payload[0]}")
+                        download_button.configure(state="normal")
+                        url_entry.configure(state="normal")
+            except queue.Empty:
+                pass
+            if window.winfo_exists():
+                window.after(150, poll)
+
+        def close() -> None:
+            if active["download"] and not messagebox.askyesno(
+                "nicoPad",
+                "O download continua em segundo plano, mas o som não vai entrar na lista.\n\nFechar mesmo assim?",
+            ):
+                return
+            self.typing = False
+            window.destroy()
+
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=4, column=0, sticky="ew")
+        download_button = ttk.Button(buttons, text="Baixar", command=start_download)
+        download_button.pack(side="left")
+        ttk.Button(buttons, text="Fechar", command=close).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", close)
+        window.bind(ESC_KEY, lambda _event: close())
+        _center_on(window, self)
+        window.grab_set()
+        window.after(150, poll)
+
+    # ------------------------------------------------------------------ corte
+
+    def _trim_dialog(self) -> None:
+        """Corte não destrutivo: início/fim em segundos, aplicados na carga do som."""
+        index = self._selected_index()
+        if index is None:
+            self._flash("Escolha um som na lista para cortar.")
+            return
+        binding = self.settings.bindings[index]
+        if not Path(binding.path).is_file():
+            self._flash(f"Arquivo não encontrado: {binding.path}")
+            return
+        try:
+            full = load_sound(binding.path)
+        except Exception as exc:
+            self._flash(f"Não consegui abrir «{binding.name}»: {exc}")
+            return
+
+        duration = len(full.data) / full.samplerate if full.samplerate else 0.0
+        edges = {"start": min(binding.start, duration), "end": binding.end if 0 < binding.end <= duration else duration}
+        state = {"width": 0, "peaks": None, "drag": None}
+
+        window = tk.Toplevel(self)
+        window.title(f"Cortar «{binding.name}»")
+        window.transient(self)
+        window.resizable(True, False)
+        frame = ttk.Frame(window, padding=14)
+        frame.pack(fill="both", expand=True)
+        frame.columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(frame, height=120, background="#1e1e1e", highlightthickness=0)
+        canvas.grid(row=0, column=0, sticky="ew")
+        labels_var = tk.StringVar()
+        ttk.Label(frame, textvariable=labels_var).grid(row=1, column=0, sticky="w", pady=(6, 10))
+
+        def fmt(seconds: float) -> str:
+            return f"{int(seconds // 60)}:{seconds % 60:04.1f}"
+
+        def to_x(seconds: float) -> int:
+            return int(seconds / duration * state["width"]) if duration and state["width"] else 0
+
+        def to_seconds(x: int) -> float:
+            return max(0.0, min(duration, x / state["width"] * duration)) if state["width"] else 0.0
+
+        def redraw() -> None:
+            width = state["width"]
+            if not width or state["peaks"] is None:
+                return
+            canvas.delete("all")
+            mid = 60
+            for x, (low, high) in enumerate(state["peaks"]):
+                canvas.create_line(x, mid - high * 55, x, mid - low * 55, fill="#7fd1b9")
+            left, right = to_x(edges["start"]), to_x(edges["end"])
+            if left > 0:
+                canvas.create_rectangle(0, 0, left, 120, fill="black", stipple="gray50", outline="")
+            if right < width:
+                canvas.create_rectangle(right, 0, width, 120, fill="black", stipple="gray50", outline="")
+            canvas.create_line(left, 0, left, 120, fill="white", width=2)
+            canvas.create_line(right, 0, right, 120, fill="white", width=2)
+            labels_var.set(
+                f"Início {fmt(edges['start'])}   Fim {fmt(edges['end'])}   Duração {fmt(edges['end'] - edges['start'])}"
+            )
+
+        def on_configure(event) -> None:
+            state["width"] = event.width
+            state["peaks"] = peaks(full.data, max(1, event.width))
+            redraw()
+
+        def on_press(event) -> None:
+            left, right = to_x(edges["start"]), to_x(edges["end"])
+            state["drag"] = "start" if abs(event.x - left) <= abs(event.x - right) else "end"
+
+        def on_drag(event) -> None:
+            if state["drag"] is None:
+                return
+            seconds = to_seconds(event.x)
+            gap = min(0.05, duration)  # alças não se cruzam: nunca um corte de 0 segundo
+            if state["drag"] == "start":
+                edges["start"] = max(0.0, min(seconds, edges["end"] - gap))
+            else:
+                edges["end"] = min(duration, max(seconds, edges["start"] + gap))
+            redraw()
+
+        def on_release(_event) -> None:
+            state["drag"] = None
+
+        canvas.bind("<Configure>", on_configure)
+        canvas.bind("<ButtonPress-1>", on_press)
+        canvas.bind("<B1-Motion>", on_drag)
+        canvas.bind("<ButtonRelease-1>", on_release)
+
+        def preview() -> None:
+            try:
+                clip = load_sound(
+                    binding.path,
+                    start=edges["start"],
+                    end=edges["end"],
+                    gain=binding.gain,
+                    monitor=binding.monitor,
+                    monitor_gain=binding.monitor_gain,
+                )
+            except Exception as exc:
+                self._flash(f"Não consegui ouvir o trecho: {exc}")
+                return
+            self.engine.preview(clip)
+
+        def reset_all() -> None:
+            edges["start"], edges["end"] = 0.0, duration
+            redraw()
+
+        def save() -> None:
+            binding.start = edges["start"]
+            binding.end = 0.0 if edges["end"] >= duration - 1e-6 else edges["end"]
+            try:
+                self.sounds[_key(binding.path)] = load_sound(
+                    binding.path,
+                    name=binding.name,
+                    gain=binding.gain,
+                    monitor=binding.monitor,
+                    monitor_gain=binding.monitor_gain,
+                    start=binding.start,
+                    end=binding.end,
+                )
+            except Exception as exc:
+                self._flash(f"Não consegui salvar o corte: {exc}")
+                return
+            self.engine.prepare(self.sounds.values())
+            self._refresh_rows(select=index)
+            self._save()
+            self._flash(f"«{binding.name}» cortado: {fmt(edges['start'])} → {fmt(edges['end'])}.")
+            window.destroy()
+
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=2, column=0, sticky="ew", pady=(4, 0))
+        ttk.Button(buttons, text="Ouvir trecho", command=preview).pack(side="left")
+        ttk.Button(buttons, text="Tudo", command=reset_all).pack(side="left", padx=(6, 0))
+        ttk.Button(buttons, text="Salvar", command=save).pack(side="right")
+        ttk.Button(buttons, text="Cancelar", command=window.destroy).pack(side="right", padx=(0, 6))
+        window.protocol("WM_DELETE_WINDOW", window.destroy)
+        window.bind(ESC_KEY, lambda _event: window.destroy())
+        window.geometry("640x260")
+        _center_on(window, self)
+        window.grab_set()
 
     # ---------------------------------------------------------- pasta dos sons
 
@@ -910,7 +1276,7 @@ class NicoPadApp(tk.Tk):
     # ------------------------------------------------------------------ perfis
 
     def _export_profile(self) -> None:
-        if not self.settings.bindings:
+        if not any(m.bindings for m in self.settings.maps):
             self._flash("Não há sons para exportar.")
             return
         path = filedialog.asksaveasfilename(
@@ -946,9 +1312,10 @@ class NicoPadApp(tk.Tk):
         if not count:
             messagebox.showwarning("nicoPad", "O perfil não trouxe nenhum som.")
             return
+        total = sum(len(m.bindings) for m in self.settings.maps)
         if not messagebox.askyesno(
             "nicoPad",
-            f"Isto substitui os {len(self.settings.bindings)} som(ns), as teclas e as configurações "
+            f"Isto substitui os {total} som(ns), as teclas e as configurações (todos os mapas) "
             f"atuais pelos {count} som(ns) do perfil «{Path(path).name}».\n\nContinuar?",
         ):
             return
@@ -968,6 +1335,7 @@ class NicoPadApp(tk.Tk):
         self.volume_var.set(float(settings.volume))
         self.library_var.set(bool(settings.library_enabled))
         self._sync_library()
+        self._sync_maps()
         self._load_bindings()
         self._restore_devices()
         self._sync_toggles()
