@@ -7,7 +7,7 @@ e a tecla **continua funcionando normalmente** no jogo.
 - Sons ficam na memória: o som sai no mesmo instante em que você aperta a tecla.
 - Cada som tem os próprios volumes (no mic e no fone) e decide se sai também no seu fone.
 - O microfone de verdade pode ser misturado junto, para a sua voz não sumir.
-- Um único `.exe`, sem instalar nada além do cabo de áudio virtual do Windows.
+- Instalador simples (sem pedir administrador) que se atualiza sozinho; o único extra é o cabo de áudio virtual do Windows.
 - Ao fechar a janela, o app pergunta: vai para a **bandeja do sistema** (Windows e Linux) e
   continua tocando os sons pelos atalhos, ou encerra de vez.
 
@@ -16,7 +16,8 @@ e a tecla **continua funcionando normalmente** no jogo.
 ```bash
 task setup     # cria .venv e instala as dependências (uma vez)
 task run       # abre o app pelo código-fonte
-task build     # gera dist/nicopad.exe
+task build     # gera o app em dist/nicopad/
+task installer # gera o instalador dist/nicopad-setup.exe (precisa do Inno Setup 6)
 task cable     # coloca o instalador oficial do cabo de áudio na sua pasta
 task test      # verificação automática, sem abrir a interface
 ```
@@ -206,7 +207,8 @@ SHA-256 antes de usar.
 | `task cable` | Copia e descompacta o instalador oficial do cabo de áudio (VB-Cable) na sua pasta           |
 
 | `task logo` | Redesenha a logo do app (`packaging/nicopad.png` e `packaging/nicopad.ico`) |
-| `task build` | Gera `dist/nicopad.exe` (PyInstaller, arquivo único, sem console) |
+| `task build` | Gera o app em `dist/nicopad/` (PyInstaller, pasta, sem console) |
+| `task installer` | Empacota `dist/nicopad/` em `dist/nicopad-setup.exe` (Inno Setup 6, por usuário, sem UAC) |
 | `task verify` | Roda a verificação dentro do `.exe` gerado |
 | `task clean` | Apaga `.venv`, `build/`, `dist/` e caches |
 
@@ -217,8 +219,8 @@ ficar enxuto, e embute as DLLs do PortAudio e do libsndfile.
 
 ## Onde ficam as coisas
 
-- `nicopad.json` — configuração (dispositivos, volume, sons, teclas e o tamanho da janela), ao lado do
-  `.exe` (ou na raiz do projeto quando roda pelo código-fonte). É texto simples, dá para
+- `nicopad.json` — configuração (dispositivos, volume, sons, teclas e o tamanho da janela), em
+  `%LOCALAPPDATA%\nicoPad` (ou na raiz do projeto quando roda pelo código-fonte). É texto simples, dá para
   editar à mão.
   Se ele ficar ilegível (edição manual), o app guarda uma cópia em `nicopad.json.invalido`
   antes de recomeçar do zero.
@@ -238,7 +240,7 @@ ficar enxuto, e embute as DLLs do PortAudio e do libsndfile.
 | «Arquivo não encontrado»     | O original foi movido/apagado: remova o som e adicione de novo, ou use a pasta própria                  |
 | Som saiu diferente no perfil | O volume por som ficou em 0% ou o som está sem «Tocar também no meu fone»                               |
 
-O app não abre sozinho com o Windows. Para isso, crie um atalho de `dist\nicopad.exe` na
+O app não abre sozinho com o Windows. Para isso, crie um atalho do nicoPad (Menu Iniciar) na
 pasta `shell:startup` (Win+R → digite `shell:startup`).
 
 ## Estrutura
@@ -264,3 +266,12 @@ packaging/nicopad.png    logo da janela e da bandeja (troque o arquivo para usar
 packaging/fonts/         fonte Archivo (licença OFL), embutida no .exe
 Taskfile.yml             setup, run, test, build, verify, clean
 ```
+
+## Instalador e atualização
+
+A release traz `nicopad-setup.exe` completo (não um patch) e o `AppId` do instalador é fixo:
+instalar por cima de **qualquer** versão anterior, de uma ou de dez releases atrás, só troca os
+arquivos e mantém a configuração. O app confere a última release ao abrir e, se você aceitar, baixa
+e roda o instalador em silêncio. Cada release também publica uma cópia chamada `nicopad.exe`, que é
+o nome que as versões portáteis antigas (1.x) procuram: elas rodam o instalador e passam para a
+versão instalada, levando o `nicopad.json` junto.
