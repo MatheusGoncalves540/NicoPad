@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from nicopad import theme, youtube
 from nicopad.audio import peaks
+from nicopad.config import DB_MAX, DB_MIN
 from nicopad.ui.lists import seconds_text
 from nicopad.ui.widgets import Box, Button, Check, Chip, Icon, Text, cells, hbox, vbox
 
@@ -356,7 +357,7 @@ class Waveform(QWidget):
 
 
 class TrimDialog(Dialog):
-    """Corte não destrutivo: só grava `start`/`end` em segundos."""
+    """Corte não destrutivo: grava `start`/`end` em segundos e o ganho em dB (fader no estilo do Vegas)."""
 
     def __init__(self, win, binding, full):
         super().__init__(win, "Cortar som", 720, resizable=True)
@@ -381,6 +382,25 @@ class TrimDialog(Dialog):
             self.values.append(value)
             blocks.append(block)
         self.body.addWidget(cells(*blocks))
+
+        level = Box("bg")
+        row = hbox(level, (16, 12, 16, 12), 12)
+        row.addWidget(Text("GANHO", 11, 400, alpha=0.6, spacing=0.88))
+        self.db_slider = QSlider(Qt.Orientation.Horizontal)
+        self.db_slider.setRange(round(DB_MIN * 10), round(DB_MAX * 10))  # décimos de dB
+        self.db_slider.setPageStep(10)
+        self.db_slider.setValue(round(binding.gain_db * 10))
+        self.db_slider.valueChanged.connect(self._db_changed)
+        self.db_value = Text("", 20, 800)
+        self.db_value.setMinimumWidth(96)
+        zero = Button("0 dB", "ghost")
+        zero.clicked.connect(lambda: self.db_slider.setValue(0))
+        row.addWidget(self.db_slider, 1)
+        row.addWidget(self.db_value)
+        row.addWidget(zero)
+        self.body.addWidget(level)
+        self._db_changed()
+
         self.wave.changed.connect(self._refresh)
         self._refresh()
         self.values[3].set_text("—")
@@ -401,10 +421,18 @@ class TrimDialog(Dialog):
         for value, seconds in zip(self.values, (start, end, end - start)):
             value.set_text(seconds_text(seconds))
 
+    @property
+    def gain_db(self) -> float:
+        return self.db_slider.value() / 10
+
+    def _db_changed(self) -> None:
+        db = self.gain_db
+        self.db_value.set_text("-∞ dB" if db <= DB_MIN else f"{db:+.1f} dB")
+
     def _listen(self) -> None:
         """Toca o trecho do começo e acompanha a posição na forma de onda."""
         start = self.wave.start
-        length = self.win.preview_clip(self.binding, start, self.wave.end)
+        length = self.win.preview_clip(self.binding, start, self.wave.end, self.gain_db)
         if length is None:
             self._stop_clock()
             return

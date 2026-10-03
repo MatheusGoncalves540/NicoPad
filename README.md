@@ -260,7 +260,8 @@ src/nicopad/
   tray.py       ícone na bandeja do sistema: abrir a janela e encerrar o app
   config.py     configuração em JSON
   selftest.py   verificação automática do app compilado ou não
-packaging/nicopad.spec   receita do executável (embute o ícone, a logo e o pacote do cabo)
+packaging/nicopad.iss    receita do instalador (Inno Setup)
+packaging/nicopad.spec   receita do app (embute o ícone, a logo e o pacote do cabo)
 packaging/nicopad.ico    ícone do .exe (troque o arquivo para usar outro)
 packaging/nicopad.png    logo da janela e da bandeja (troque o arquivo para usar outro)
 packaging/fonts/         fonte Archivo (licença OFL), embutida no .exe

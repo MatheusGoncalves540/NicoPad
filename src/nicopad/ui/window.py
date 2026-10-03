@@ -604,6 +604,7 @@ class NicoPadApp(QMainWindow):
                     monitor_gain=binding.monitor_gain,
                     start=binding.start,
                     end=binding.end,
+                    gain_db=binding.gain_db,
                 )
             except Exception:
                 pass  # a linha já aparece marcada como «arquivo não encontrado»
@@ -791,12 +792,18 @@ class NicoPadApp(QMainWindow):
             return
         self.engine.preview(sound)
 
-    def preview_clip(self, binding, start: float, end: float):
+    def preview_clip(self, binding, start: float, end: float, gain_db: float):
         """Ouve o trecho do corte do começo; um clique novo reinicia em vez de empilhar. Devolve a duração (s)."""
         self.stop_clip()
         try:
             clip = load_sound(
-                binding.path, start=start, end=end, gain=binding.gain, monitor=binding.monitor, monitor_gain=binding.monitor_gain
+                binding.path,
+                start=start,
+                end=end,
+                gain=binding.gain,
+                monitor=binding.monitor,
+                monitor_gain=binding.monitor_gain,
+                gain_db=gain_db,
             )
         except Exception as exc:
             self.flash(f"Não consegui ouvir o trecho: {exc}")
@@ -1145,6 +1152,7 @@ class NicoPadApp(QMainWindow):
         start, end, duration = dialog.edges
         binding.start = start
         binding.end = 0.0 if end >= duration - 1e-6 else end
+        binding.gain_db = dialog.gain_db
         try:
             self.sounds[self.sound_key(binding.path)] = load_sound(
                 binding.path,
@@ -1154,6 +1162,7 @@ class NicoPadApp(QMainWindow):
                 monitor_gain=binding.monitor_gain,
                 start=binding.start,
                 end=binding.end,
+                gain_db=binding.gain_db,
             )
         except Exception as exc:
             self.flash(f"Não consegui salvar o corte: {exc}")

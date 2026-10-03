@@ -15,6 +15,8 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 
+from nicopad.config import DB_MIN
+
 CHANNELS = 2
 LATENCY = 0.03
 MIC_BUFFER_SECONDS = 1.0
@@ -207,11 +209,13 @@ def load_sound(
     monitor_gain: float = 1.0,
     start: float = 0.0,
     end: float = 0.0,
+    gain_db: float = 0.0,
 ) -> Sound:
     """Carrega wav/mp3/ogg/flac/opus/aiff para a memória, sempre estéreo.
 
     `start`/`end` aparam o som em segundos (`end` 0 = até o fim do arquivo); o corte é
-    aplicado antes de normalizar canais, então `Sound.data` já nasce aparado.
+    aplicado antes de normalizar canais, então `Sound.data` já nasce aparado. `gain_db`
+    amplifica/atenua o próprio arquivo (DB_MIN = mudo); o volume em % vem por cima.
     """
     data, samplerate = sf.read(str(path), dtype="float32", always_2d=True)
     if not len(data):
@@ -225,6 +229,8 @@ def load_sound(
         data = data[:, :CHANNELS]
     elif data.shape[1] < CHANNELS:
         data = np.repeat(data[:, :1], CHANNELS, axis=1)
+    if gain_db:
+        data = data * (0.0 if gain_db <= DB_MIN else 10 ** (gain_db / 20))
     return Sound(
         name=name or Path(path).stem,
         path=str(Path(path)),

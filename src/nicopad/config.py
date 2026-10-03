@@ -19,6 +19,8 @@ LEGACY = "soundpad.json"
 THEMES = ("claro", "escuro")
 VIEWS = ("lista", "pads")
 
+DB_MIN, DB_MAX = -60.0, 12.0  # faixa do ganho em dB (como o fader do Vegas); no mínimo o som fica mudo (-∞)
+
 
 def is_first_run() -> bool:
     """True quando ainda não existe configuração nenhuma (nem a do nome antigo)."""
@@ -47,6 +49,7 @@ class Binding:
     monitor_gain: float = 1.0  # volume deste som no meu fone
     start: float = 0.0  # segundos aparados do começo
     end: float = 0.0  # segundo onde o som acaba; 0 = até o fim do arquivo
+    gain_db: float = 0.0  # ganho em dB aplicado ao arquivo, por cima do volume em %; DB_MIN = mudo
 
 
 @dataclass
@@ -101,6 +104,15 @@ def _level(value, default: float = 1.0) -> float:
         return default
 
 
+def _db(value) -> float:
+    """Ganho em dB dentro de [DB_MIN, DB_MAX]; qualquer coisa estranha vira 0 dB."""
+    try:
+        db = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(DB_MIN, min(DB_MAX, db)) if math.isfinite(db) else 0.0
+
+
 def _seconds(value) -> float:
     """Segundos (>= 0); qualquer coisa não-finita ou negativa vira 0."""
     try:
@@ -128,6 +140,7 @@ def _binding(raw):
         monitor_gain=_level(raw.get("monitor_gain")),
         start=_seconds(raw.get("start")),
         end=_seconds(raw.get("end")),
+        gain_db=_db(raw.get("gain_db")),
     )
 
 

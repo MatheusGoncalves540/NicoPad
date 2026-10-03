@@ -186,7 +186,12 @@ def _extra_checks(check, wav) -> None:
         table = peaks(whole.data, 100)
         assert table.shape == (100, 2), table.shape
         assert abs(float(table.max()) - float(whole.data.max())) < 1e-6, (table.max(), whole.data.max())
-        return "corte aplicado na carga, corte inválido toca o som inteiro, peaks() bate com o pico do sinal"
+        peak = float(abs(whole.data).max())
+        assert abs(float(abs(load_sound(wav, gain_db=6.0).data).max()) / peak - 10 ** (6 / 20)) < 1e-3, "+6 dB ≈ ×1,995"
+        assert abs(float(abs(load_sound(wav, gain_db=-6.0).data).max()) / peak - 10 ** (-6 / 20)) < 1e-3, "-6 dB ≈ ×0,501"
+        assert not load_sound(wav, gain_db=cfg.DB_MIN).data.any(), "DB_MIN deveria deixar mudo"
+        assert cfg._db(99) == cfg.DB_MAX and cfg._db("x") == 0.0 and cfg._db(float("inf")) == 0.0
+        return "corte aplicado na carga, corte inválido toca o som inteiro, peaks() bate com o pico do sinal, ganho em dB (+6, -6, mudo, clamp)"
 
     def youtube_url():
         assert youtube.check_url("file:///c:/x.mp3") is not None
@@ -506,11 +511,21 @@ def run() -> int:
                 assert not win.progress and win.active_button.trailing == "count:0"
                 # prévia do corte: um clique novo reinicia (não empilha) e parar cala
                 win.engine._mon_mixer = Mixer(44100)
-                win.preview_clip(settings.bindings[0], 0.0, 0.0)
-                win.preview_clip(settings.bindings[0], 0.0, 0.0)
+                win.preview_clip(settings.bindings[0], 0.0, 0.0, 0.0)
+                win.preview_clip(settings.bindings[0], 0.0, 0.0, 0.0)
                 assert len(win.engine._mon_mixer.active()) == 1, win.engine._mon_mixer.active()
                 win.stop_clip()
                 assert not win.engine._mon_mixer.active()
+                # fader de ganho do corte: lê/grava em dB e -∞ no mínimo
+                from nicopad.ui.dialogs import TrimDialog
+
+                trim = TrimDialog(win, settings.bindings[0], load_sound(settings.bindings[0].path))
+                assert trim.gain_db == 0.0 and trim.db_value.text() == "+0.0 dB", trim.db_value.text()
+                trim.db_slider.setValue(35)
+                assert trim.gain_db == 3.5 and trim.db_value.text() == "+3.5 dB", trim.db_value.text()
+                trim.db_slider.setValue(trim.db_slider.minimum())
+                assert trim.gain_db == cfg.DB_MIN and "∞" in trim.db_value.text(), trim.db_value.text()
+                trim.deleteLater()
                 # tema: troca, pinta nos dois e guarda a escolha
                 win.toggle_theme()
                 assert settings.theme == "escuro" and not win.grab().isNull()
