@@ -3,10 +3,12 @@ name: Build
 # Versionamento: por padrão sobe o patch (X.Y.Z+1); um commit com "[minor]"
 # na mensagem sobe o minor (zera o patch); um com "[major]" sobe o major
 # (zera minor e patch). "[major]" vence se os dois aparecerem.
+#
+# Só a branch `releases` gera build e release (master é a de desenvolvimento e não dispara nada).
+# Para lançar: faça merge de master em releases e dê push.
 on:
   push:
-    branches: [master]
-  workflow_dispatch: {}
+    branches: [releases]
 
 permissions:
   contents: write
@@ -63,7 +65,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -am "chore: bump version to $version [skip ci]"
           git tag "$version"
-          git push origin HEAD:master --tags
+          git push origin "HEAD:${{ github.ref_name }}" --tags
 
       - name: Builda o executável
         run: task build
