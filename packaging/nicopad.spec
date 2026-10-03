@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Build do nicoPad: um único .exe, só com o que o app realmente usa."""
+"""Build do nicoPad: pasta dist/nicopad, só com o que o app realmente usa (o instalador a empacota)."""
 
 import os
 
@@ -51,14 +51,33 @@ analysis = Analysis(
     noarchive=False,
 )
 
+# O PyInstaller/hooks arrastam coisas que o app nunca carrega: renderizador OpenGL por
+# software (20 MB), Qt Quick/Qml/Pdf/Network, plugins de rede, traduções do Qt e os
+# codecs AVIF/WebP do Pillow (a bandeja só usa PNG).
+UNUSED = (
+    "opengl32sw", "d3dcompiler", "qt6quick", "qt6qml", "qt6pdf", "qt6network", "qt6opengl",
+    "qt6virtualkeyboard", "qdirect2d", "/plugins/tls/", "networkinformation", "pyside6/translations",
+    "pyside6/qml", "pil/_avif", "pil/_webp",
+)
+
+
+def _used(entry):
+    name = entry[0].replace("\\", "/").lower()
+    return not any(part in name for part in UNUSED)
+
+
+analysis.binaries = [item for item in analysis.binaries if _used(item)]
+analysis.datas = [item for item in analysis.datas if _used(item)]
+
 pyz = PYZ(analysis.pure)
 
+# Pasta (não arquivo único): o instalador comprime tudo junto e o app abre sem
+# descompactar 190 MB no %TEMP% a cada execução.
 exe = EXE(
     pyz,
     analysis.scripts,
-    analysis.binaries,
-    analysis.datas,
     [],
+    exclude_binaries=True,
     name="nicopad",
     debug=False,
     bootloader_ignore_signals=False,
@@ -72,3 +91,5 @@ exe = EXE(
     entitlements_file=None,
     icon=ICON,
 )
+
+coll = COLLECT(exe, analysis.binaries, analysis.datas, strip=False, upx=False, name="nicopad")

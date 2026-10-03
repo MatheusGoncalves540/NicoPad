@@ -8,7 +8,13 @@ vars:
   VENV: .venv
   VENV_PY: "{{.VENV}}/Scripts/python.exe"
   SRC: src
-  EXE: dist/nicopad.exe
+  EXE: dist/nicopad/nicopad.exe
+  SETUP: dist/nicopad-setup.exe
+  VERSION:
+    sh: grep -oE '[0-9]+[.][0-9]+[.][0-9]+' src/nicopad/__init__.py | head -n1
+  # Inno Setup: instalação por usuário (local) ou do choco (CI)
+  ISCC:
+    sh: for p in "$LOCALAPPDATA/Programs/Inno Setup 6" "C:/Program Files (x86)/Inno Setup 6" "C:/Program Files/Inno Setup 6"; do [ -f "$p/ISCC.exe" ] && echo "$p/ISCC.exe" && break; done
 
 tasks:
   default:
@@ -45,7 +51,7 @@ tasks:
       - "PYTHONPATH={{.SRC}} {{.VENV_PY}} -m nicopad --selftest"
 
   build:
-    desc: Gera o executável único em dist/nicopad.exe
+    desc: Gera o app em dist/nicopad/ (pasta, sem instalador)
     deps: [setup]
     sources:
       - "{{.SRC}}/**/*.py"
@@ -55,6 +61,12 @@ tasks:
       - "{{.EXE}}"
     cmds:
       - "{{.VENV_PY}} -m PyInstaller --clean --noconfirm --distpath dist --workpath build packaging/nicopad.spec"
+
+  installer:
+    desc: Gera o instalador dist/nicopad-setup.exe (precisa do Inno Setup 6)
+    deps: [build]
+    cmds:
+      - '"{{.ISCC}}" /Qp /DAppVersion={{.VERSION}} packaging/nicopad.iss'
 
   verify:
     desc: Roda a verificação dentro do executável compilado

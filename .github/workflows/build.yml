@@ -67,8 +67,11 @@ jobs:
           git tag "$version"
           git push origin "HEAD:${{ github.ref_name }}" --tags
 
-      - name: Builda o executável
-        run: task build
+      - name: Instala o Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Builda o app e o instalador
+        run: task installer
 
       - name: Publica a release
         shell: bash
@@ -76,4 +79,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${{ steps.version.outputs.version }}"
-          gh release create "$version" dist/nicopad.exe --title "$version" --generate-notes
+          # nicopad.exe é o mesmo instalador com o nome que as versões portáteis antigas
+          # (1.x) procuram para se atualizar; elas rodam o instalador e migram para a versão instalada.
+          cp dist/nicopad-setup.exe dist/nicopad.exe
+          gh release create "$version" dist/nicopad-setup.exe dist/nicopad.exe --title "$version" --generate-notes

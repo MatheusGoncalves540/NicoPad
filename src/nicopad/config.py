@@ -1,9 +1,10 @@
-"""Configuração do nicoPad: um JSON simples ao lado do executável (portátil)."""
+"""Configuração do nicoPad: um JSON simples (em %LOCALAPPDATA%\\nicoPad quando instalado)."""
 
 from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass, field
@@ -26,9 +27,9 @@ def is_first_run() -> bool:
 
 
 def config_path() -> Path:
-    """Fica ao lado do .exe (portátil); no código-fonte, na raiz do projeto."""
+    """Instalado: %LOCALAPPDATA%\\nicoPad (a pasta do programa não é gravável); no código-fonte, na raiz do projeto."""
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent / FILENAME
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "nicoPad" / FILENAME
     return Path(__file__).resolve().parents[2] / FILENAME
 
 
@@ -206,6 +207,7 @@ def save(settings: Settings, path=None) -> str | None:
     path = Path(path or config_path())
     temporary = path.with_name(path.name + ".tmp")
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         temporary.write_text(json.dumps(asdict(settings), indent=2, ensure_ascii=False), encoding="utf-8")
         temporary.replace(path)
     except OSError as exc:

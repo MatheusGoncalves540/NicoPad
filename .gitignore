@@ -11,8 +11,4 @@ soundpad.json
 soundpad-selftest.txt
 .task/
 
-# Backups diários do graphify (snapshot antes de sobrescrever graph.json) —
-# redundante com o próprio histórico do git, e cresce uma pasta por dia sem
-# limpeza automática. graph.json/GRAPH_REPORT.md/cache/ continuam versionados
-# de propósito (reaproveita entre máquinas sem gastar token de novo).
-graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+graphify-out/
