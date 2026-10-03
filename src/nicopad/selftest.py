@@ -62,6 +62,22 @@ def _extra_checks(check, wav) -> None:
         assert abs(peak - 0.25) < 1e-6, peak
         return "volume do som individual entra na mistura"
 
+    def voices_stop_and_loop():
+        sound = Sound("tom", "tom.wav", np.full((1000, 2), 0.5, dtype=np.float32), 44100)
+        mixer = Mixer(44100)
+        mixer.trigger(sound, 1.0, 1)
+        mixer.trigger(sound, 1.0, 2)
+        mixer.set_loop(1, True)
+        mixer.render(1500)  # passa do fim: só a voz em loop sobrevive
+        assert [voice[0] for voice in mixer.active()] == [1], mixer.active()
+        assert 0.0 <= mixer.active()[0][2] < 1.0 and mixer.active()[0][3], mixer.active()
+        mixer.trigger(sound, 1.0, 3)
+        mixer.set_level(3, 0.5)
+        assert abs(float(mixer.render(10)[:, 0].max()) - 0.75) < 1e-6  # voz 1 (0.5) + voz 3 a 50% (0.25)
+        mixer.stop(1)  # parar uma voz não toca nas outras
+        assert [voice[0] for voice in mixer.active()] == [3], mixer.active()
+        return "loop repete a voz, nível ao vivo ajusta só uma voz, parar uma deixa as outras tocando"
+
     def sounds_folder():
         assert library.default_folder().name == "sons", library.default_folder()
         target = folder / "copia"
@@ -187,6 +203,7 @@ def _extra_checks(check, wav) -> None:
 
     check("lista de aparelhos", device_filter)
     check("volume por som", sound_levels)
+    check("vozes: parar e loop", voices_stop_and_loop)
     check("pasta dos sons", sounds_folder)
     check("perfil (.zip)", profile_roundtrip)
     check("mapas de teclas", keymaps)

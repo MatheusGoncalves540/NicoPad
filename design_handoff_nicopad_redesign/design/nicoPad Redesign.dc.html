@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="_ds/modernist-4c04ec39-c969-4cef-b908-705307db7360/styles.css">
+  <script src="_ds/modernist-4c04ec39-c969-4cef-b908-705307db7360/_ds_bundle.js"></script>
+  <style>body{margin:0;background:#dcdada}a{color:#ec3013}a:hover{color:#dd2b0f}</style>
+</helmet>
+<section data-screen-label="Turno 1" style="display:flex;flex-direction:column;gap:32px;padding:56px;font-family:var(--font-body);color:var(--color-text)">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
+    <span style="font-family:var(--font-heading);font-weight:800;font-size:42px;letter-spacing:-0.02em;line-height:1.1">nicoPad — redesign</span>
+    <span style="font-size:16px">Duas direções no sistema Modernist, pensadas para um toolkit nativo multiplataforma. Tudo é clicável: toque os sons com o teclado, troque Pads/Lista, abra Configurar som, Cortar, YouTube, o guia (?) e o assistente (Configurar áudio). O ícone de lua alterna claro/escuro.</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:56px;align-items:flex-start">
+    <div id="1a" style="display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-weight:800;font-size:14px;padding:4px 10px;background:#ec3013;color:#f3f2f2">1a</span><span style="font-family:var(--font-heading);font-weight:800;font-size:24px">Painel — barra lateral com mapas e áudio</span></div>
+      <span style="font-size:14px;max-width:1180px">Abre na lista (mais perto do app atual). Mapas e o estado do áudio ficam sempre visíveis à esquerda; «Parar tudo» e o volume geral ficam embaixo. As ações de cada som aparecem na própria linha, no lugar das duas barras de botões.</span>
+      <dc-import name="nicoPad App" direction="A" theme="claro" screen="principal" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="A" theme="escuro" screen="config" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="A" theme="claro" screen="onboarding" sem-cabo="{{ true }}" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="A" theme="claro" screen="cortar" hint-size="1182px,762px"></dc-import>
+    </div>
+    <div id="1b" style="display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-weight:800;font-size:14px;padding:4px 10px;background:#ec3013;color:#f3f2f2">1b</span><span style="font-family:var(--font-heading);font-weight:800;font-size:24px">Mesa — pads grandes, faixa de roteamento</span></div>
+      <span style="font-size:14px;max-width:1180px">Abre nos pads. A barra vermelha leva o mascote e os mapas como abas; logo abaixo, uma faixa em quatro células mostra para onde o som vai (mic, sua voz, seu fone) e o volume. Clicar em qualquer célula abre o assistente.</span>
+      <dc-import name="nicoPad App" direction="B" theme="escuro" screen="principal" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="B" theme="claro" screen="principal" sem-cabo="{{ true }}" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="B" theme="escuro" screen="youtube" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="B" theme="claro" screen="guia" hint-size="1182px,762px"></dc-import>
+    </div>
+  </div>
+</section>
+<section data-screen-label="Atual" style="display:flex;flex-direction:column;gap:20px;padding:0 56px 56px;font-family:var(--font-body);color:var(--color-text)">
+  <div style="height:2px;background:color-mix(in srgb, #201e1d 40%, transparent)"></div>
+  <div style="display:flex;align-items:center;gap:12px"><span style="font-weight:800;font-size:14px;padding:4px 10px;border:1px solid #201e1d">Atual</span><span style="font-family:var(--font-heading);font-weight:800;font-size:24px">Referência — a janela em Tkinter de hoje (ui.py)</span></div>
+  <dc-import name="nicoPad Atual" hint-size="922px,594px"></dc-import>
+</section>
+</x-dc>
+</body>
+</html>

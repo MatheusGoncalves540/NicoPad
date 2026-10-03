@@ -37,6 +37,11 @@ COMBO = "<<ComboboxSelected>>"
 ESC_KEY = "<Escape>"
 WINDOW_SIZE = "920x560"
 WINDOW_MIN = (700, 440)
+ACTIVE_REFRESH_MS = 200
+LOOP_ON = "☑ Loop"
+LOOP_OFF = "☐ Loop"
+LEVEL_STEP = 0.1
+LEVEL_MAX = 2.0  # até 200% do volume do som; a mistura já limita os picos
 
 
 def _percent(value) -> str:
@@ -154,6 +159,7 @@ class NicoPadApp(tk.Tk):
         self.save_error = None
         self.last_folder = ""
         self.search_var = tk.StringVar()
+        self.active_window = None
         self.typing = False  # campo de texto em foco: as teclas não tocam sons
 
         # A bandeja é a porta de volta quando a janela fecha: sem ela, fechar fecha mesmo.
@@ -174,6 +180,7 @@ class NicoPadApp(tk.Tk):
         self.restart_engine()
         self.tray.start()
         self.after(60, self._pump)
+        self._poll_active()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         if getattr(sys, "frozen", False):  # rodando do fonte não tem .exe para trocar
             self.after(3000, self._check_updates)
@@ -321,6 +328,7 @@ class NicoPadApp(tk.Tk):
             ("Cortar", self._trim_dialog),
             ("Ouvir", self._preview),
             ("Parar tudo", self._stop_all),
+            ("Tocando agora", self._active_window),
             ("Tecla p/ parar tudo", self._start_stop_binding),
             ("Remover", self._remove_selected),
         ):
@@ -367,6 +375,97 @@ class NicoPadApp(tk.Tk):
         )
         self.warning_label.grid(row=1, column=0, sticky="ew")
         self.bind("<Configure>", self._on_resize)
+
+    def _active_window(self) -> None:
+        """Janela «Tocando agora»: sem modal, então os atalhos e a janela principal seguem valendo."""
+        if self.active_window is not None:
+            self.active_window.deiconify()
+            self.active_window.lift()
+            return
+        window = tk.Toplevel(self)
+        window.title("nicoPad · Tocando agora")
+        window.minsize(560, 240)
+        window.geometry("640x320")
+        window.columnconfigure(0, weight=1)
+        window.rowconfigure(0, weight=1)
+        frame = ttk.Frame(window, padding=(10, 8))
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
+        hint = "Clique em «Loop» para repetir, em «−»/«+» para o volume e em «Parar» para calar só aquele som."
+        ttk.Label(frame, text=hint, wraplength=560).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self.active_tree = ttk.Treeview(
+            frame,
+            columns=("name", "progress", "volume", "down", "up", "loop", "stop"),
+            show="headings",
+            selectmode="none",
+        )
+        for column, title, width, stretch in (
+            ("name", "Som", 260, True),
+            ("progress", "Tocado", 70, False),
+            ("volume", "Volume", 70, False),
+            ("down", "", 40, False),
+            ("up", "", 40, False),
+            ("loop", "Loop", 80, False),
+            ("stop", "", 80, False),
+        ):
+            self.active_tree.heading(column, text=title)
+            self.active_tree.column(column, width=width, minwidth=60, stretch=stretch, anchor="w")
+        self.active_tree.grid(row=1, column=0, sticky="nsew")
+        scroll = ttk.Scrollbar(frame, orient="vertical", command=self.active_tree.yview)
+        scroll.grid(row=1, column=1, sticky="ns")
+        self.active_tree.configure(yscrollcommand=scroll.set)
+        self.active_tree.bind("<Button-1>", self._on_active_click)
+        ttk.Button(frame, text="Parar tudo", command=self._stop_all).grid(row=2, column=0, sticky="w", pady=(6, 0))
+        self.active_window = window
+        window.protocol("WM_DELETE_WINDOW", self._close_active_window)
+        self._refresh_active()
+
+    def _close_active_window(self) -> None:
+        if self.active_window is not None:
+            self.active_window.destroy()
+        self.active_window = None
+
+    def _on_active_click(self, event) -> None:
+        row = self.active_tree.identify_row(event.y)
+        if not row:
+            return
+        column = self.active_tree["columns"][int(self.active_tree.identify_column(event.x)[1:]) - 1]
+        voice_id = int(row)
+        current = next((voice for voice in self.engine.active() if voice[0] == voice_id), None)
+        if current is None:
+            return  # a voz acabou entre o desenho da lista e o clique
+        _id, _name, _fraction, loop, level = current
+        if column == "stop":
+            self.engine.stop_voice(voice_id)
+        elif column == "loop":
+            self.engine.set_loop(voice_id, not loop)
+        elif column in ("down", "up"):
+            step = LEVEL_STEP if column == "up" else -LEVEL_STEP
+            self.engine.set_level(voice_id, max(0.0, min(LEVEL_MAX, round(level + step, 2))))
+        else:
+            return
+        self._refresh_active()
+
+    def _refresh_active(self) -> None:
+        """Sincroniza a lista com as vozes tocando: não recria linhas, para não piscar."""
+        voices = {str(voice_id): voice for voice_id, *voice in self.engine.active()}
+        for row in self.active_tree.get_children():
+            if row not in voices:
+                self.active_tree.delete(row)
+        for row, (name, fraction, loop, level) in voices.items():
+            values = (name, _percent(fraction), _percent(level), "−", "+", LOOP_ON if loop else LOOP_OFF, "■ Parar")
+            if self.active_tree.exists(row):
+                self.active_tree.item(row, values=values)
+            else:
+                self.active_tree.insert("", "end", iid=row, values=values)
+
+    def _poll_active(self) -> None:
+        if self.closing:
+            return
+        if self.active_window is not None:
+            self._refresh_active()
+        self.after(ACTIVE_REFRESH_MS, self._poll_active)
 
     def _on_resize(self, event) -> None:
         if event.widget is self:

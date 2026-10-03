@@ -6,6 +6,7 @@ não mexer nas configurações do Windows e manter a latência baixa.
 
 from __future__ import annotations
 
+import itertools
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -265,6 +266,21 @@ class MicBridge:
         return out
 
 
+class Voice:
+    """Uma execução em andamento de um som: posição, ganho e se repete."""
+
+    __slots__ = ("id", "name", "data", "position", "gain", "level", "loop")
+
+    def __init__(self, id: int, name: str, data: np.ndarray, gain: float):
+        self.id = id
+        self.name = name
+        self.data = data
+        self.position = 0
+        self.gain = float(gain)
+        self.level = 1.0  # ajuste ao vivo pela tela «Tocando agora», por cima do ganho do som
+        self.loop = False
+
+
 class Mixer:
     """Mistura as vozes ativas de um stream. Um mixer por dispositivo de saída."""
 
@@ -276,11 +292,11 @@ class Mixer:
         self._lock = threading.Lock()
         self.rendered = 0  # amostras já entregues: prova que o stream está puxando áudio
 
-    def trigger(self, sound: Sound, gain: float = 1.0) -> None:
+    def trigger(self, sound: Sound, gain: float = 1.0, voice_id: int = 0) -> None:
         """Chamado pela thread do hook: só enfileira a voz, nada de cálculo."""
-        data = sound.at(self.samplerate)
+        voice = Voice(voice_id, sound.name, sound.at(self.samplerate), gain)
         with self._lock:
-            self._voices.append([data, 0, float(gain)])
+            self._voices.append(voice)
             if len(self._voices) > MAX_VOICES:
                 del self._voices[0]
 
@@ -288,17 +304,47 @@ class Mixer:
         with self._lock:
             self._voices.clear()
 
+    def stop(self, voice_id: int) -> None:
+        with self._lock:
+            self._voices = [voice for voice in self._voices if voice.id != voice_id]
+
+    def set_loop(self, voice_id: int, loop: bool) -> None:
+        with self._lock:
+            for voice in self._voices:
+                if voice.id == voice_id:
+                    voice.loop = loop
+
+    def set_level(self, voice_id: int, level: float) -> None:
+        with self._lock:
+            for voice in self._voices:
+                if voice.id == voice_id:
+                    voice.level = level
+
+    def active(self) -> list:
+        """(id, nome, fração tocada, em loop, nível) de cada voz, para a tela «Tocando agora»."""
+        with self._lock:
+            return [
+                (voice.id, voice.name, voice.position / len(voice.data), voice.loop, voice.level)
+                for voice in self._voices
+            ]
+
     def render(self, frames: int) -> np.ndarray:
         block = np.zeros((frames, CHANNELS), dtype=np.float32)
         with self._lock:
             alive = []
             for voice in self._voices:
-                data, position, gain = voice
-                take = min(frames, len(data) - position)
-                if take > 0:
-                    block[:take] += data[position : position + take] * gain
-                    voice[1] = position + take
-                if voice[1] < len(data):
+                done = 0
+                while done < frames:
+                    take = min(frames - done, len(voice.data) - voice.position)
+                    block[done : done + take] += voice.data[voice.position : voice.position + take] * (voice.gain * voice.level)
+                    voice.position += take
+                    done += take
+                    if voice.position < len(voice.data):
+                        break
+                    if not voice.loop:
+                        break
+                    voice.position = 0
+                if voice.position < len(voice.data):
                     alive.append(voice)
             self._voices = alive
         if self.mic is not None:
@@ -326,6 +372,7 @@ class AudioEngine:
         self._out_stream = None
         self._mon_stream = None
         self._in_stream = None
+        self._voice_ids = itertools.count(1)
 
     def start(self, output, monitor=None, microphone=None, volume: float = 1.0, sounds=()) -> None:
         self.stop()
@@ -375,10 +422,31 @@ class AudioEngine:
         self.status = "parado"
 
     def trigger(self, sound: Sound) -> None:
+        voice_id = next(self._voice_ids)  # o mesmo id nos dois mixers: parar/loop valem para ambos
         if self._out_mixer is not None:
-            self._out_mixer.trigger(sound, sound.gain)
+            self._out_mixer.trigger(sound, sound.gain, voice_id)
         if self._mon_mixer is not None and sound.monitor:
-            self._mon_mixer.trigger(sound, sound.monitor_gain)
+            self._mon_mixer.trigger(sound, sound.monitor_gain, voice_id)
+
+    def active(self) -> list:
+        """Vozes tocando agora na saída principal: (id, nome, fração, loop, nível)."""
+        mixer = self._out_mixer
+        return mixer.active() if mixer is not None else []
+
+    def stop_voice(self, voice_id: int) -> None:
+        for mixer in (self._out_mixer, self._mon_mixer):
+            if mixer is not None:
+                mixer.stop(voice_id)
+
+    def set_loop(self, voice_id: int, loop: bool) -> None:
+        for mixer in (self._out_mixer, self._mon_mixer):
+            if mixer is not None:
+                mixer.set_loop(voice_id, loop)
+
+    def set_level(self, voice_id: int, level: float) -> None:
+        for mixer in (self._out_mixer, self._mon_mixer):
+            if mixer is not None:
+                mixer.set_level(voice_id, level)
 
     def stop_all(self) -> None:
         for mixer in (self._out_mixer, self._mon_mixer):

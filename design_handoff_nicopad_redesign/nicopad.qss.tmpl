@@ -1,0 +1,82 @@
+/* Ponto de partida. Preencher com str.format(**tokens) a partir de tokens.json.
+   {muted}, {label}, {hover}, {pressed}, {accent_hover}, {track} = text/accent com o alpha de text_alpha. */
+
+* {{ font-family: "Archivo"; font-size: 14px; color: {text}; outline: 0; }}
+QWidget#Root, QMainWindow, QStackedWidget {{ background: {bg}; }}
+
+/* regras */
+QFrame[rule="strong"] {{ background: {divider}; min-height: 2px; max-height: 2px; border: 0; }}
+QFrame[rule="strongV"] {{ background: {divider}; min-width: 2px; max-width: 2px; border: 0; }}
+
+/* cabeçalho / barra lateral / status */
+QWidget#Header {{ border-bottom: 2px solid {divider}; }}
+QWidget#Sidebar {{ border-right: 2px solid {divider}; }}
+QWidget#Toolbar {{ border-bottom: 2px solid {divider}; }}
+QWidget#StatusBar {{ border-top: 2px solid {divider}; font-size: 13px; }}
+QLabel#Brand {{ font-size: 20px; font-weight: 800; }}
+QLabel[role="section"] {{ font-size: 11px; color: {muted}; letter-spacing: 0.88px; }}  /* texto em MAIÚSCULAS no código */
+QLabel[role="muted"] {{ color: {muted}; font-size: 12px; }}
+QLabel[role="warn"] {{ color: {accent_700}; font-weight: 600; }}
+
+/* botões — texto à esquerda: usar QPushButton com layout próprio ou text-align: left */
+QPushButton {{ border: 0; border-radius: 0; background: transparent; font-weight: 800; padding: 8px 14px; text-align: left; }}
+QPushButton:hover {{ background: {hover}; }}
+QPushButton:pressed {{ background: {pressed}; }}
+QPushButton:disabled {{ color: {muted}; }}
+QPushButton[kind="primary"] {{ background: {accent}; color: {bg}; }}
+QPushButton[kind="primary"]:hover {{ background: {accent_600}; }}
+QPushButton[kind="primary"]:pressed {{ background: {accent_700}; }}
+QPushButton[kind="secondary"] {{ border: 1px solid {divider}; }}
+QPushButton[kind="ghost"] {{ color: {accent}; padding: 8px 10px; }}
+QPushButton[kind="ghost"]:hover {{ background: {accent_hover}; }}
+QPushButton[kind="icon"] {{ padding: 0; min-width: 32px; max-width: 32px; min-height: 32px; max-height: 32px; }}
+QPushButton[kind="seg"] {{ font-weight: 400; font-size: 13px; padding: 7px 12px; }}
+QPushButton[kind="seg"]:checked {{ background: {accent}; color: {bg}; }}
+QPushButton[kind="map"] {{ font-weight: 400; padding: 9px 16px; }}
+QPushButton[kind="map"]:checked {{ background: {accent_100}; color: {accent_800}; font-weight: 800; }}
+QPushButton:focus-visible {{ border: 2px solid {accent}; }}
+
+/* campos */
+QLineEdit, QComboBox {{ background: {surface}; border: 1px solid {divider}; border-radius: 0; min-height: 34px; padding: 0 10px; selection-background-color: {accent_100}; selection-color: {accent_800}; }}
+QLineEdit:focus, QComboBox:focus {{ border-color: {accent}; }}
+QLineEdit[inDialog="true"] {{ background: {bg}; }}
+QComboBox::drop-down {{ border: 0; width: 28px; }}
+QComboBox QAbstractItemView {{ background: {surface}; border: 1px solid {divider}; selection-background-color: {accent_100}; selection-color: {accent_800}; }}
+QCheckBox::indicator {{ width: 16px; height: 16px; border: 1.5px solid {divider}; background: {bg}; }}
+QCheckBox::indicator:checked {{ background: {accent}; border-color: {accent}; image: url(:/icons/check-bg.svg); }}
+
+/* sliders */
+QSlider::groove:horizontal {{ height: 4px; background: {track}; }}
+QSlider::sub-page:horizontal {{ background: {accent}; }}
+QSlider::handle:horizontal {{ width: 12px; height: 18px; margin: -7px 0; background: {accent}; border-radius: 0; }}
+QSlider::handle:horizontal:hover {{ background: {accent_600}; }}
+QSlider:disabled {{ opacity: 0.45; }}
+
+/* progresso */
+QProgressBar {{ border: 0; border-radius: 0; background: {track}; max-height: 6px; min-height: 6px; text-align: left; }}
+QProgressBar::chunk {{ background: {accent}; }}
+
+/* menus e diálogos */
+QMenu {{ background: {surface}; border: 1px solid {divider}; padding: 4px 0; }}
+QMenu::item {{ padding: 8px 16px; }}
+QMenu::item:selected {{ background: {accent_100}; color: {accent_800}; }}
+QMenu::separator {{ height: 1px; background: {divider}; margin: 4px 0; }}
+QDialog, QMessageBox {{ background: {surface}; }}
+QLabel#DialogTitle {{ font-size: 20px; font-weight: 800; }}
+QWidget#DialogHeader {{ border-bottom: 2px solid {divider}; }}
+QWidget#DialogActions {{ border-top: 2px solid {divider}; }}
+
+/* tabela */
+QTableView {{ background: {bg}; border: 0; gridline-color: transparent; selection-background-color: {hover}; selection-color: {text}; }}
+QHeaderView::section {{ background: {bg}; color: {muted}; font-size: 11px; border: 0; border-bottom: 2px solid {divider}; padding: 0 0 0 0; height: 36px; }}
+QScrollBar:vertical {{ background: transparent; width: 10px; }}
+QScrollBar::handle:vertical {{ background: {divider}; min-height: 32px; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}
+QToolTip {{ background: {text}; color: {bg}; border: 0; padding: 6px 8px; font-size: 12px; }}
+
+/* assistente */
+QWidget#WizardSide {{ background: {accent}; }}
+QWidget#WizardSide QLabel {{ color: {bg}; }}
+QLabel#WizardTitle {{ font-size: 32px; font-weight: 800; }}
+QLabel#WizardHero {{ font-size: 38px; font-weight: 800; }}
+QWidget#WizardFooter {{ border-top: 2px solid {divider}; }}
