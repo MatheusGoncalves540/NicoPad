@@ -23,7 +23,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: arduino/setup-task@v2
+      - uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0 (fixo no commit: recebe o token)
+        with:
+          version: 3.x
+          # sem token a action consulta a API do GitHub anonimamente e estoura o limite de requisições
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Calcula a próxima versão
         id: version
