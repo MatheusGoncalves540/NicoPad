@@ -66,11 +66,14 @@ Tecla já usada por outro som: o som anterior perde a tecla e o app avisa na bar
 
 O X da janela (ou Alt+F4) não encerra nada sem perguntar antes:
 
-| Botão    | O que acontece                                                |
-| -------- | ------------------------------------------------------------- |
-| Sim      | A janela sai da frente e o nicoPad fica na bandeja do sistema |
-| Não      | O programa é encerrado                                        |
-| Cancelar | Está tudo como estava: a janela continua aberta               |
+| Botão                | O que acontece                                                |
+| -------------------- | ------------------------------------------------------------- |
+| Deixar na bandeja    | A janela sai da frente e o nicoPad fica na bandeja do sistema |
+| Encerrar o programa  | O programa é encerrado                                        |
+| Cancelar             | Está tudo como estava: a janela continua aberta               |
+
+Marque **Lembrar minha escolha** para não perguntar de novo (dá para mudar em
+**Configurações → Ao fechar a janela**).
 
 Na bandeja, o ícone do nicoPad tem **Abrir o nicoPad** (clicar nele também abre) e **Sair**.
 Enquanto ele está lá, os atalhos globais continuam funcionando e os sons saem normalmente; a
@@ -243,7 +246,10 @@ pasta `shell:startup` (Win+R → digite `shell:startup`).
 ```
 src/nicopad/
   __main__.py   ponto de entrada (e a flag --selftest)
-  ui.py         janela do Tkinter: barra superior, lista de sons, busca e configuração por som
+  theme.py      tokens de cor (claro/escuro), fonte Archivo, ícones Lucide e o QSS
+  ui/           interface em PySide6 (Qt Widgets): window (janela principal), lists (Lista e Pads),
+                dialogs (configurar, cortar, YouTube, guia, fechar), playing (Tocando agora),
+                wizard (assistente de primeiro uso) e widgets (botões e peças pintadas à mão)
   audio.py      dispositivos, sons na memória, mistura e passa-voz do microfone
   library.py    pasta própria dos sons (cópia sem sobrescrever nada)
   profile.py    perfil: sons + configuração (todos os mapas) em um .zip
@@ -255,5 +261,6 @@ src/nicopad/
 packaging/nicopad.spec   receita do executável (embute o ícone, a logo e o pacote do cabo)
 packaging/nicopad.ico    ícone do .exe (troque o arquivo para usar outro)
 packaging/nicopad.png    logo da janela e da bandeja (troque o arquivo para usar outro)
+packaging/fonts/         fonte Archivo (licença OFL), embutida no .exe
 Taskfile.yml             setup, run, test, build, verify, clean
 ```

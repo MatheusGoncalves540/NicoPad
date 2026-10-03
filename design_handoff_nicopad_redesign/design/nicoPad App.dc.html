@@ -20,7 +20,7 @@
     <span style="flex:1;color:color-mix(in srgb, var(--color-text) 70%, transparent)">nicoPad</span>
     <span style="width:46px;height:32px;display:grid;place-items:center">{{ ic.minus }}</span>
     <span style="width:46px;height:32px;display:grid;place-items:center">{{ ic.square }}</span>
-    <span style="width:46px;height:32px;display:grid;place-items:center">{{ ic.x }}</span>
+    <span onClick="{{ openClose }}" title="Fechar" style="width:46px;height:32px;display:grid;place-items:center;cursor:pointer" style-hover="background:#c42b1c;color:#fff">{{ ic.x }}</span>
   </div>
 
   <sc-if value="{{ isA }}" hint-placeholder-val="{{ true }}">
@@ -116,7 +116,8 @@
           <button onClick="{{ setList }}" style="display:flex;align-items:center;gap:6px;padding:7px 12px;font:inherit;font-size:13px;border:0;border-left:1px solid var(--color-divider);cursor:pointer;background:{{ segList.bg }};color:{{ segList.fg }}">{{ ic.list }} Lista</button>
         </div>
         <div style="flex:1"></div>
-        <button onClick="{{ openYoutube }}" style="display:flex;align-items:center;gap:6px;padding:8px 14px;font:inherit;font-size:14px;font-weight:800;border:1px solid var(--color-divider);background:transparent;color:var(--color-text);cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">{{ ic.download }} Baixar do YouTube</button>
+        <button onClick="{{ toggleActive }}" title="Tocando agora" style="display:flex;align-items:center;gap:8px;padding:8px 12px;font:inherit;font-size:14px;font-weight:800;border:1px solid {{ activeBtn.border }};background:{{ activeBtn.bg }};color:{{ activeBtn.fg }};cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">{{ ic.volS }} Tocando agora <span style="min-width:20px;font-size:12px;font-weight:800;padding:0 6px;text-align:center;background:{{ activeBtn.chipBg }};color:{{ activeBtn.chipFg }}">{{ voiceCount }}</span></button>
+        <button onClick="{{ openYoutube }}" title="Baixar do YouTube" style="flex:none;display:flex;align-items:center;gap:6px;padding:8px 14px;font:inherit;font-size:14px;font-weight:800;border:1px solid var(--color-divider);background:transparent;color:var(--color-text);cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">{{ ic.download }} YouTube</button>
         <button onClick="{{ addSound }}" style="display:flex;align-items:center;gap:6px;padding:8px 14px;font:inherit;font-size:14px;font-weight:800;border:1px solid var(--color-accent);background:var(--color-accent);color:var(--color-bg);cursor:pointer" style-hover="background:var(--color-accent-600)" style-active="background:var(--color-accent-700)">{{ ic.plus }} Adicionar som</button>
         <sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}">
           <button onClick="{{ stopAll }}" style="display:flex;align-items:center;gap:8px;padding:8px 14px;font:inherit;font-size:14px;font-weight:800;border:1px solid var(--color-text);background:var(--color-text);color:var(--color-bg);cursor:pointer" style-hover="opacity:.85">{{ ic.stop }} Parar tudo <span style="font-size:11px;font-weight:600;padding:1px 6px;border:1px solid color-mix(in srgb, var(--color-bg) 60%, transparent)">{{ stopKey }}</span></button>
@@ -180,6 +181,50 @@
       </div>
     </div>
   </div>
+
+  <sc-if value="{{ activeOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;right:24px;bottom:58px;width:600px;display:flex;flex-direction:column;background:var(--color-bg);border:1px solid var(--color-divider);box-shadow:var(--shadow-lg);z-index:4">
+      <div style="height:32px;display:flex;align-items:center;gap:8px;padding-left:10px;background:var(--color-surface);font-size:12px;border-bottom:1px solid var(--color-divider)">
+        <img src="packaging/nicopad.png" style="width:16px;height:16px;object-fit:contain"></img>
+        <span style="flex:1;color:color-mix(in srgb, var(--color-text) 70%, transparent)">nicoPad · Tocando agora</span>
+        <span onClick="{{ toggleActive }}" style="width:46px;height:32px;display:grid;place-items:center;cursor:pointer" style-hover="background:#c42b1c;color:#fff">{{ ic.x }}</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;padding:14px 16px;border-bottom:2px solid var(--color-divider)">
+        <span style="font-family:var(--font-heading);font-weight:800;font-size:20px;letter-spacing:-0.015em">Tocando agora</span>
+        <span style="font-size:13px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ voiceSummary }}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 136px 88px 92px;column-gap:12px;align-items:center;padding:0 16px;height:30px;border-bottom:1px solid var(--color-divider);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent)">
+        <span>Som · tocado</span><span>Volume</span><span></span><span></span>
+      </div>
+      <div style="max-height:264px;overflow:auto">
+        <sc-for list="{{ voices }}" as="v" hint-placeholder-count="3">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 136px 88px 92px;column-gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--color-divider)">
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.name }}</span><span style="flex:none;font-size:12px;font-weight:800">{{ v.pct }}</span></div>
+              <div style="height:4px;background:color-mix(in srgb, var(--color-text) 12%, transparent)"><div style="height:4px;width:{{ v.progress }}%;background:var(--color-accent)"></div></div>
+            </div>
+            <div style="display:flex;align-items:center;border:1px solid var(--color-divider)">
+              <button onClick="{{ v.down }}" title="Menos volume" style="width:34px;height:32px;display:grid;place-items:center;border:0;border-right:1px solid var(--color-divider);background:transparent;color:var(--color-text);cursor:pointer;font:inherit;font-size:16px;font-weight:800" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">−</button>
+              <span style="flex:1;text-align:center;font-size:13px;font-weight:800;color:{{ v.levelFg }}">{{ v.level }}</span>
+              <button onClick="{{ v.up }}" title="Mais volume" style="width:34px;height:32px;display:grid;place-items:center;border:0;border-left:1px solid var(--color-divider);background:transparent;color:var(--color-text);cursor:pointer;font:inherit;font-size:16px;font-weight:800" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">+</button>
+            </div>
+            <button onClick="{{ v.loop }}" title="Repetir" style="height:34px;display:flex;align-items:center;gap:6px;padding:0 10px;font:inherit;font-size:13px;font-weight:800;text-align:left;border:1px solid {{ v.loopBorder }};background:{{ v.loopBg }};color:{{ v.loopFg }};cursor:pointer">{{ ic.repeat }} Loop</button>
+            <button onClick="{{ v.stop }}" title="Parar só este som" style="height:34px;display:flex;align-items:center;gap:6px;padding:0 10px;font:inherit;font-size:13px;font-weight:800;text-align:left;border:1px solid var(--color-divider);background:transparent;color:var(--color-text);cursor:pointer" style-hover="background:var(--color-accent-100);color:var(--color-accent-800)">{{ ic.stop }} Parar</button>
+          </div>
+        </sc-for>
+        <sc-if value="{{ noVoices }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:4px;padding:28px 16px">
+            <span style="font-weight:800;font-size:15px">Nada tocando</span>
+            <span style="font-size:13px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">Aperte a tecla de um som ou clique num pad. Ele aparece aqui enquanto toca.</span>
+          </div>
+        </sc-if>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:2px solid var(--color-divider)">
+        <button onClick="{{ stopAll }}" style="display:flex;align-items:center;gap:8px;padding:8px 14px;font:inherit;font-size:14px;font-weight:800;text-align:left;border:0;background:var(--color-accent);color:var(--color-bg);cursor:pointer" style-hover="background:var(--color-accent-600)">{{ ic.stop }} Parar tudo <span style="font-size:11px;font-weight:600;padding:1px 6px;border:1px solid color-mix(in srgb, var(--color-bg) 60%, transparent)">{{ stopKey }}</span></button>
+        <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">Janela solta: os atalhos e a janela principal continuam valendo.</span>
+      </div>
+    </div>
+  </sc-if>
 
   <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ closeModal }}" style="position:absolute;inset:32px 0 0 0;display:grid;place-items:center;padding:16px;background:color-mix(in srgb, var(--color-neutral-900) 55%, transparent);z-index:5">
@@ -262,6 +307,20 @@
             <div style="height:6px;background:color-mix(in srgb, var(--color-text) 12%, transparent)"><div style="height:6px;width:{{ ytProgress }}%;background:var(--color-accent)"></div></div>
             <span style="font-size:13px;min-height:19px;color:color-mix(in srgb, var(--color-text) 70%, transparent)">{{ ytStatus }}</span>
             <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">O áudio vai direto para a pasta dos sons e aparece na lista pronto para receber uma tecla.</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ mClose }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:16px">
+            <span style="font-size:15px">Fechar o nicoPad ou deixá-lo na bandeja?</span>
+            <span style="font-size:13px;color:color-mix(in srgb, var(--color-text) 70%, transparent);text-wrap:pretty">Na bandeja, os atalhos continuam funcionando e os sons saem normalmente.</span>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px"><input type="checkbox" checked="{{ rememberClose }}" onChange="{{ toggleRemember }}" style="accent-color:var(--color-accent);width:16px;height:16px;margin:0"></input>Lembrar minha escolha</label>
+          </div>
+          <div style="display:flex;gap:8px;padding:12px 16px;border-top:2px solid var(--color-divider)">
+            <button onClick="{{ chooseTray }}" style="padding:8px 14px;font:inherit;font-size:14px;font-weight:800;text-align:left;border:0;background:var(--color-accent);color:var(--color-bg);cursor:pointer" style-hover="background:var(--color-accent-600)">Deixar na bandeja</button>
+            <button onClick="{{ chooseQuit }}" style="padding:8px 14px;font:inherit;font-size:14px;font-weight:800;border:1px solid var(--color-divider);background:transparent;color:var(--color-text);cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">Encerrar o programa</button>
+            <span style="flex:1"></span>
+            <button onClick="{{ closeModal }}" style="padding:8px 10px;font:inherit;font-size:14px;font-weight:800;border:0;background:transparent;color:var(--color-accent);cursor:pointer" style-hover="background:color-mix(in srgb, var(--color-accent) 10%, transparent)">Cancelar</button>
           </div>
         </sc-if>
 
@@ -379,7 +438,7 @@
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:780},&quot;direction&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;'A'|'B'&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;claro&quot;,&quot;escuro&quot;],&quot;default&quot;:&quot;claro&quot;,&quot;tsType&quot;:&quot;'claro'|'escuro'&quot;},&quot;screen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;principal&quot;,&quot;onboarding&quot;,&quot;config&quot;,&quot;cortar&quot;,&quot;youtube&quot;,&quot;guia&quot;],&quot;default&quot;:&quot;principal&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;semCabo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:780},&quot;direction&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;'A'|'B'&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;claro&quot;,&quot;escuro&quot;],&quot;default&quot;:&quot;claro&quot;,&quot;tsType&quot;:&quot;'claro'|'escuro'&quot;},&quot;screen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;principal&quot;,&quot;tocando&quot;,&quot;onboarding&quot;,&quot;config&quot;,&quot;cortar&quot;,&quot;youtube&quot;,&quot;guia&quot;,&quot;fechar&quot;],&quot;default&quot;:&quot;principal&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;semCabo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
 const p = d => ['path', { d }];
 const PATHS = {
   play: [['polygon', { points: '6 3 20 12 6 21 6 3' }]],
@@ -407,14 +466,15 @@ const PATHS = {
   plug: [p('M12 22v-5'), p('M9 8V2'), p('M15 8V2'), p('M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z')],
   arrow: [p('M5 12h14'), p('m12 5 7 7-7 7')],
   refresh: [p('M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8'), p('M21 3v5h-5'), p('M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16'), p('M8 16H3v5')],
-  vol: [p('M11 5 6 9H2v6h4l5 4V5z'), p('M15.54 8.46a5 5 0 0 1 0 7.07')]
+  vol: [p('M11 5 6 9H2v6h4l5 4V5z'), p('M15.54 8.46a5 5 0 0 1 0 7.07')],
+  repeat: [p('m17 2 4 4-4 4'), p('M3 11v-1a4 4 0 0 1 4-4h14'), p('m7 22-4-4 4-4'), p('M21 13v1a4 4 0 0 1-4 4H3')]
 };
 const I = (n, s = 16, sw = 2) => React.createElement('svg', { width: s, height: s, viewBox: '0 0 24 24', fill: n === 'play' || n === 'stop' ? 'currentColor' : 'none', stroke: 'currentColor', strokeWidth: sw, strokeLinecap: 'round', strokeLinejoin: 'round', style: { display: 'block', flex: 'none' } }, ...PATHS[n].map((c, i) => React.createElement(c[0], { key: i, ...c[1] })));
 const ic = {
   play: I('play', 14), stop: I('stop', 14), plus: I('plus'), plusL: I('plus', 26, 2.5), minus: I('minus', 14, 1.5), square: I('square', 12, 1.5), x: I('x', 16),
   search: I('search'), settings: I('settings', 18), settingsS: I('settings', 15), scissors: I('scissors', 15), keyS: I('key', 15), trash: I('trash', 15), download: I('download'),
   grid: I('grid', 14), list: I('list', 14), help: I('help', 18), mic: I('mic', 22), micS: I('mic', 14), headS: I('head', 14), check: I('check', 20, 3), checkS: I('check', 16, 3),
-  alert: I('alert', 18), alertS: I('alert', 14), chev: I('chev', 14), plug: I('plug'), arrow: I('arrow'), refresh: I('refresh'), volS: I('vol', 14)
+  alert: I('alert', 18), alertS: I('alert', 14), chev: I('chev', 14), plug: I('plug'), arrow: I('arrow'), refresh: I('refresh'), volS: I('vol', 14), repeat: I('repeat', 14)
 };
 const DIR = 'C:\\ProgramData\\nicoPad\\sons\\';
 const mk = (id, name, key, ext, dur, o = {}) => ({ id, name, key, file: DIR + name + '.' + ext, dur, gain: 100, mon: true, monGain: 100, s: 0, e: 1, missing: false, ...o });
@@ -437,16 +497,21 @@ class Component extends DCLogic {
   state = {
     theme: null, view: null, map: 0, maps: MAPS(), sel: 2, playing: {}, listening: null, query: '', modal: null, cur: null,
     volume: 80, typing: false, flash: null, step: null, micOn: true, monOn: true, installed: false, tested: false,
-    ytUrl: '', ytProgress: 0, ytStatus: '', ytBusy: false, stopKey: 'Pause'
+    ytUrl: '', ytProgress: 0, ytStatus: '', ytBusy: false, stopKey: 'Pause', activeOpen: false, rememberClose: false
   };
+  setVoice(k, patch) { this.setState(s => s.playing[k] ? { playing: { ...s.playing, [k]: { ...s.playing[k], ...patch } } } : null); }
   waveRef = React.createRef();
   componentDidMount() {
     const pr = this.props;
     if (pr.screen === 'onboarding') this.setState({ step: 1 });
-    else if (['config', 'cortar', 'youtube', 'guia'].includes(pr.screen)) this.setState({ modal: pr.screen, cur: 2 });
+    else if (['config', 'cortar', 'youtube', 'guia', 'fechar'].includes(pr.screen)) this.setState({ modal: pr.screen, cur: 2 });
+    else if (pr.screen === 'tocando') {
+      const n = Date.now(), v = (len, off, loop, level) => ({ start: n - len * off, end: n + len * (1 - off), loop, level });
+      this.setState({ activeOpen: true, playing: { 1: v(1800, 0.3, true, 1), 7: v(5400, 0.55, true, 1.4), 9: v(60000, 0.12, false, 0.7) } });
+    }
     this.onKey = e => this.handleKey(e);
     window.addEventListener('keydown', this.onKey);
-    this.tick = setInterval(() => { if (Object.keys(this.state.playing).length) this.setState(s => { const now = Date.now(), pl = {}; for (const k in s.playing) if (s.playing[k].end > now) pl[k] = s.playing[k]; return { playing: pl }; }); }, 60);
+    this.tick = setInterval(() => { if (Object.keys(this.state.playing).length) this.setState(s => { const now = Date.now(), pl = {}; for (const k in s.playing) { const v = s.playing[k]; if (v.end > now) pl[k] = v; else if (v.loop) { const len = v.end - v.start; pl[k] = { ...v, start: v.end, end: v.end + len }; } } return { playing: pl }; }); }, 60);
   }
   componentWillUnmount() { window.removeEventListener('keydown', this.onKey); clearInterval(this.tick); clearInterval(this.ytTimer); clearTimeout(this.flashT); }
   get sounds() { return this.state.maps[this.state.map].sounds; }
@@ -457,7 +522,7 @@ class Component extends DCLogic {
     const s = this.find(id); if (!s) return;
     if (s.missing) return this.say('Arquivo não encontrado: ' + s.file);
     const len = Math.max(0.5, s.dur * (s.e - s.s)) * 1000;
-    this.setState(st => ({ sel: id, playing: { ...st.playing, [id]: { start: Date.now(), end: Date.now() + len } } }));
+    this.setState(st => ({ sel: id, playing: { ...st.playing, [id]: { start: Date.now(), end: Date.now() + len, loop: false, level: 1 } } }));
   }
   handleKey(e) {
     const st = this.state;
@@ -569,7 +634,20 @@ class Component extends DCLogic {
       name: c.name, file: c.file, gain: c.gain, gainLabel: c.gain + '%', mon: c.mon, monGain: c.monGain, monLabel: c.mon ? c.monGain + '%' : '—', monOpacity: c.mon ? 1 : 0.55, monDisabled: !c.mon, keyLabel: c.key || '—',
       onKey: () => this.setState({ modal: null, listening: c.id }), onTrim: () => this.setState({ modal: 'cortar' }), onPreview: () => this.play(c.id)
     } : {};
-    const titles = { config: 'Configurar som', cortar: 'Cortar som', youtube: 'Baixar do YouTube', guia: 'Como configurar o cabo' };
+    const titles = { config: 'Configurar som', cortar: 'Cortar som', youtube: 'Baixar do YouTube', guia: 'Como configurar o cabo', fechar: 'Fechar a janela' };
+    const voices = Object.keys(st.playing).filter(k => k !== 'test').map(k => {
+      const v = st.playing[k], s = this.find(+k); if (!s) return null;
+      const prog = Math.min(100, Math.max(0, ((now - v.start) / (v.end - v.start)) * 100)), lvl = v.level ?? 1;
+      return {
+        name: s.name, progress: prog, pct: Math.round(prog) + '%', level: Math.round(lvl * 100) + '%', levelFg: lvl > 1 ? 'var(--color-accent-700)' : 'var(--color-text)',
+        loopBg: v.loop ? 'var(--color-accent)' : 'transparent', loopFg: v.loop ? 'var(--color-bg)' : 'var(--color-text)', loopBorder: v.loop ? 'var(--color-accent)' : 'var(--color-divider)',
+        down: () => this.setVoice(k, { level: Math.max(0, Math.round((lvl - 0.1) * 10) / 10) }),
+        up: () => this.setVoice(k, { level: Math.min(2, Math.round((lvl + 0.1) * 10) / 10) }),
+        loop: () => this.setVoice(k, { loop: !v.loop }),
+        stop: () => this.setState(s2 => { const pl = { ...s2.playing }; delete pl[k]; return { playing: pl }; })
+      };
+    }).filter(Boolean);
+    const nLoop = Object.keys(st.playing).filter(k => k !== 'test' && st.playing[k].loop && this.find(+k)).length;
     const step = st.step || 0;
     const stepLabels = ['Cabo de áudio virtual', 'Seus aparelhos', 'No Discord ou no jogo', 'Pronto'];
     const playingTest = !!st.playing.test;
@@ -587,7 +665,16 @@ class Component extends DCLogic {
       routeOut, pill, warnings, statusText, statusIcon, statusFg, statusWeight,
       addSound: () => { const id = Date.now(); this.setState(s2 => ({ sel: id, maps: s2.maps.map((m, i) => i !== s2.map ? m : { ...m, sounds: [...m.sounds, mk(id, 'Som novo', '', 'wav', 2.0)] }) })); this.say('1 som adicionado — agora clique em «Definir tecla».'); },
       openYoutube: () => this.setState({ modal: 'youtube' }), openGuide: () => this.setState({ modal: 'guia' }), openSetup: () => this.setState({ modal: null, step: 1 }),
-      modalOpen: !!st.modal && (st.modal === 'youtube' || st.modal === 'guia' || !!c), modalTitle: titles[st.modal] || '', modalW: st.modal === 'cortar' ? 720 : st.modal === 'guia' ? 620 : 520,
+      modalOpen: !!st.modal && (['youtube', 'guia', 'fechar'].includes(st.modal) || !!c), modalTitle: titles[st.modal] || '', modalW: st.modal === 'cortar' ? 720 : st.modal === 'guia' ? 620 : st.modal === 'fechar' ? 460 : 520,
+      voices, noVoices: !voices.length, voiceCount: String(voices.length), activeOpen: st.activeOpen,
+      voiceSummary: voices.length ? voices.length + (voices.length === 1 ? ' som' : ' sons') + (nLoop ? ' · ' + nLoop + ' em loop' : '') : '',
+      toggleActive: () => this.setState({ activeOpen: !st.activeOpen }),
+      activeBtn: st.activeOpen ? { bg: 'color-mix(in srgb, var(--color-text) 7%, transparent)', fg: 'var(--color-text)', border: 'var(--color-text)', chipBg: voices.length ? 'var(--color-accent)' : 'color-mix(in srgb, var(--color-text) 12%, transparent)', chipFg: voices.length ? 'var(--color-bg)' : 'var(--color-text)' }
+        : { bg: 'transparent', fg: 'var(--color-text)', border: 'var(--color-divider)', chipBg: voices.length ? 'var(--color-accent)' : 'color-mix(in srgb, var(--color-text) 12%, transparent)', chipFg: voices.length ? 'var(--color-bg)' : 'var(--color-text)' },
+      openClose: () => this.setState({ modal: 'fechar' }), mClose: st.modal === 'fechar', rememberClose: st.rememberClose,
+      toggleRemember: e => this.setState({ rememberClose: e.target.checked }),
+      chooseTray: () => { this.setState({ modal: null }); this.say('O nicoPad continua na bandeja.'); },
+      chooseQuit: () => { this.setState({ modal: null }); this.say('(protótipo) O programa seria encerrado aqui.'); },
       mConfig: st.modal === 'config' && !!c, mTrim: st.modal === 'cortar' && !!c, mYt: st.modal === 'youtube', mGuide: st.modal === 'guia',
       closeModal: () => this.setState({ modal: null, typing: false }), stop: e => e.stopPropagation(), cur,
       onName: e => this.update(c.id, { name: e.target.value }), onGain: e => this.update(c.id, { gain: +e.target.value }), onMonGain: e => this.update(c.id, { monGain: +e.target.value }), onMonToggle: e => this.update(c.id, { mon: e.target.checked }),

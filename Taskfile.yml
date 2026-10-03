@@ -50,6 +50,7 @@ tasks:
     sources:
       - "{{.SRC}}/**/*.py"
       - packaging/nicopad.spec
+      - packaging/fonts/*
     generates:
       - "{{.EXE}}"
     cmds:

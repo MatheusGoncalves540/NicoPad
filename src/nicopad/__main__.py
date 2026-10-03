@@ -26,23 +26,12 @@ def main(argv=None) -> int:
         from nicopad.selftest import run
 
         return run()
-    _dpi_awareness()
-    from nicopad.config import load
-    from nicopad.ui import NicoPadApp
+    from nicopad.config import is_first_run, load
+    from nicopad.ui import run
 
+    first_run = is_first_run()
     settings, warning = load()
-    NicoPadApp(settings, warning).mainloop()
-    return 0
-
-
-def _dpi_awareness() -> None:
-    """Sem isso o Tk desenha borrado em telas com escala acima de 100%."""
-    try:
-        import ctypes
-
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    except Exception:
-        pass
+    return run(settings, warning, first_run)
 
 
 if __name__ == "__main__":
@@ -52,13 +41,9 @@ if __name__ == "__main__":
         import traceback
 
         try:
-            import tkinter
-            from tkinter import messagebox
+            import ctypes
 
-            root = tkinter.Tk()
-            root.withdraw()
-            messagebox.showerror("nicoPad", "Falha ao iniciar:\n\n" + traceback.format_exc())
-            root.destroy()
+            ctypes.windll.user32.MessageBoxW(0, "Falha ao iniciar:\n\n" + traceback.format_exc(), "nicoPad", 0x10)
         except Exception:
-            pass
+            pass  # sem Windows ou sem janela: o traceback abaixo ainda sai
         raise

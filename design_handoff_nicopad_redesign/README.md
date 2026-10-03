@@ -3,7 +3,7 @@
 ## Overview
 Redesign completo da interface do nicoPad (repo `MatheusGoncalves540/NicoPad`, hoje em Tkinter/ttk em `src/nicopad/ui.py`). Toda a lógica atual continua: `audio.py`, `hotkeys.py`, `library.py`, `profile.py`, `youtube.py`, `cable.py`, `updater.py` e `config.py` **não mudam de comportamento**. O que muda é a camada de interface, que sai do Tkinter e passa para **PySide6 (Qt Widgets)**.
 
-Telas: janela principal (com visualização **Pads** e **Lista**), assistente de primeiro uso (4 passos), Configurar som, Cortar som, Baixar do YouTube, guia do cabo (?). Tudo em tema **claro** e **escuro**.
+Telas: janela principal (com visualização **Pads** e **Lista**), **Tocando agora** (janela solta), assistente de primeiro uso (4 passos), Configurar som, Cortar som, Baixar do YouTube, guia do cabo (?), Fechar a janela. Tudo em tema **claro** e **escuro**.
 
 ## About the Design Files
 Os arquivos em `design/` são **referências de design feitas em HTML**: protótipos que mostram a aparência e o comportamento esperados. **Não são código para produção e não devem ser embutidos no app** (nada de WebView, Electron, Tauri ou QtWebEngine — o dono do projeto quer um app desktop nativo, sem tecnologia web). A tarefa é **recriar essas telas em PySide6** seguindo este documento.
@@ -161,7 +161,8 @@ Layout (de cima para baixo):
    - Busca: até 340px de largura, altura 36px, fundo surface, borda 1px divider, ícone search 16px muted + campo sem borda, placeholder "Buscar sons, teclas ou arquivos". Esc limpa. Mesma regra de busca de hoje (`_matches`: todas as palavras precisam aparecer em nome+tecla+caminho).
    - Segmentado (borda 1px divider, separador 1px): "▦ Pads" | "☰ Lista", 13px, padding 7px 12px. Ativo: fundo accent, texto bg.
    - Espaço flexível.
-   - Secundário "⤓ Baixar do YouTube".
+   - Secundário "🔊 Tocando agora [N]" — abre/fecha a janela Tocando agora (seção 7). Chip com o número de vozes tocando (12px/800, padding 0 6px, mín. 20px): com vozes, fundo accent e texto bg; sem vozes, fundo text a 12%. Com a janela aberta, o botão fica com borda 1px **text** e fundo 7%.
+   - Secundário "⤓ YouTube" (tooltip "Baixar do YouTube").
    - Primário "＋ Adicionar som" (abre o `QFileDialog` com os mesmos tipos de `AUDIO_TYPES`).
 2. **Conteúdo** (rolagem vertical): Lista ou Pads (abaixo).
 3. **Barra de status** — altura mínima 38px, padding 8px 16px, borda superior 2px, 13px:
@@ -228,6 +229,26 @@ Substitui `_show_help`. Largura 620px.
 - Rodapé 12px muted com a nota da licença e o crédito ao VB-Cable (texto do `HELP`).
 - Ações: primário "🔌 Preparar instalador do cabo" (`_prepare_cable`), secundário "Abrir site do VB-Cable", e à direita ghost "Abrir assistente" (fecha e abre o assistente).
 
+### 7. Tocando agora (janela solta, não modal)
+Substitui `_active_window` / `_refresh_active` / `_on_active_click`. É uma **janela de verdade** (`QWidget` com `Qt.Window`, não um diálogo modal): os atalhos e a janela principal continuam funcionando com ela aberta. Abrir de novo traz a mesma janela para frente. Tamanho 600×~420, mínimo 560×240. No protótipo ela aparece flutuando no canto inferior direito da janela principal só para caber na maquete.
+Usa a API que já existe: `engine.active()` → `(id, nome, fração, loop, nível)`, `engine.stop_voice(id)`, `engine.set_loop(id, bool)`, `engine.set_level(id, nível)`. Atualizar a cada `ACTIVE_REFRESH_MS` (200 ms) **sem recriar as linhas** (atualizar valores no lugar, para não piscar), como o código atual faz.
+- Cabeçalho (padding 14px 16px, borda inferior 2px): "Tocando agora" 20px/800 + resumo 13px muted: "3 sons · 2 em loop" (sem vozes: vazio).
+- Cabeçalho das colunas (altura 30px, borda inferior 1px, 11px maiúsculo muted): "SOM · TOCADO" | "VOLUME" | — | —. Colunas: **1fr** · **136px** · **88px** · **92px**, 12px de espaço, padding lateral 16px.
+- Linha (padding 12px 16px, borda inferior 1px):
+  - Coluna 1: nome 14px/600 (cortado com "…") e, à direita, a porcentagem tocada 12px/800 ("42%"); embaixo, barra de 4px (trilho text a 12%, preenchimento accent) com a fração tocada. Em loop, a barra volta a zero a cada volta.
+  - Volume: controle com contorno 1px divider: botão "−" 34×32 | valor 13px/800 centralizado ("100%") | botão "+" 34×32 (divisórias 1px). Passo `LEVEL_STEP` (10%), de 0% a `LEVEL_MAX` (200%). Acima de 100% o valor fica em accent-700.
+  - "⟲ Loop" (botão 34px de altura, 13px/800, ícone repeat 14px): desligado = secundário; ligado = fundo accent, borda accent, texto bg.
+  - "■ Parar" (secundário 34px; hover fundo accent-100, texto accent-800): para só aquela voz.
+- Lista rola depois de ~4 linhas (máx. 264px).
+- Vazio: padding 28px 16px, "Nada tocando" 15px/800 + "Aperte a tecla de um som ou clique num pad. Ele aparece aqui enquanto toca." 13px muted.
+- Rodapé (padding 12px 16px, borda superior 2px): primário "■ Parar tudo [Pause]" + nota 12px muted "Janela solta: os atalhos e a janela principal continuam valendo."
+- O texto de ajuda atual ("Clique em «Loop» para repetir…") sai: os rótulos dos botões já dizem isso.
+
+### 8. Fechar a janela (diálogo)
+Substitui `_ask_close_action`. Largura 460px, estrutura comum dos diálogos, título "Fechar a janela".
+- "Fechar o nicoPad ou deixá-lo na bandeja?" 15px; nota 13px label: "Na bandeja, os atalhos continuam funcionando e os sons saem normalmente."; checkbox "Lembrar minha escolha".
+- Ações: primário "Deixar na bandeja", secundário "Encerrar o programa", e à direita ghost "Cancelar". Mesma lógica de hoje (`close_action`, sem bandeja encerra direto). Esc = Cancelar.
+
 ### 6. Assistente de primeiro uso
 Novo. Abre sozinho **na primeira execução** (sem `nicopad.json`) e quando não há cabo virtual e o usuário nunca concluiu o assistente (gravar `setup_done: true` no `Settings`). Também abre por "Configurar áudio" e por "Abrir assistente". Cobre a janela toda (é uma página da janela, ex. `QStackedWidget`, não um diálogo).
 Grade de 2 colunas: **400px** + resto.
@@ -252,7 +273,8 @@ Grade de 2 colunas: **400px** + resto.
 - **Atalhos globais**: iguais aos de hoje (`KeyboardHook`). Enquanto um campo de texto tem foco, as teclas não tocam sons (`typing`).
 - **Definir tecla**: botão teclado na linha/pad ou "Trocar" no diálogo → modo gravação (estados visuais acima + status). A próxima tecla vira o atalho; Esc cancela ("Nenhuma tecla foi definida."). Tecla repetida tira a tecla do outro som e avisa: "«A» agora toca com F1.  (a tecla saiu de «B»)". Mesma regra para a tecla de Parar tudo. **Gravar a tecla de Parar tudo**: clique direito no botão "Parar tudo" → "Definir tecla…" (substitui o botão "Tecla p/ parar tudo").
 - **Tocar**: clique no pad, botão ▶ da linha, atalho global. Vários sons podem tocar juntos; cada um mostra o próprio progresso (atualizar a ~16–30 fps com `QTimer` só enquanto algo toca; o motor precisa expor posição/duração de cada voz — se não expuser, estimar com o tempo desde o disparo e a duração do trecho).
-- **Parar tudo**: botão ou tecla → limpa todos os progressos, recado "Sons interrompidos."
+- **Parar tudo**: botão ou tecla → limpa todos os progressos (e a lista do Tocando agora), recado "Sons interrompidos."
+- **Loop e volume ao vivo**: definidos por voz na janela Tocando agora; o progresso dos pads/linhas usa a mesma fração de `engine.active()` (resolve o "se o motor não expuser" acima: ele já expõe).
 - **Trocar mapa**: clique na barra lateral → recado "Mapa «X» ativo."; cancela gravação de tecla pendente.
 - **Remover**: mesmo fluxo de confirmação de `_remove_selected`.
 - **Tema**: botão lua/sol alterna e salva (`theme: "claro"|"escuro"` no `Settings`). Padrão: seguir o sistema (`QGuiApplication.styleHints().colorScheme()`) na primeira execução.
@@ -274,11 +296,11 @@ Mesmo conteúdo, chrome diferente:
 ## Assets
 - `design/packaging/nicopad.png` — a logo atual (`packaging/nicopad.png` do repo). Sempre sobre um quadrado `#ffffff`, nunca em escala de cinza.
 - **Fonte Archivo** 400/600/800 — Google Fonts (OFL). Embutir.
-- **Ícones Lucide** (24×24, traço 2, pontas arredondadas; play e stop preenchidos): `play`, `square` (parar), `plus`, `x`, `minus`, `search`, `sliders-horizontal`/`settings-2` (configurar), `scissors`, `keyboard`, `trash-2`, `download`, `layout-grid`, `list`, `circle-help`, `mic`, `headphones`, `check`, `triangle-alert`, `moon`, `sun`, `chevron-down`, `plug`, `arrow-right`, `refresh-cw`, `volume-1`. Tamanhos: 14–16px em botões e linhas, 18px no cabeçalho, 22–26px nos destaques.
+- **Ícones Lucide** (24×24, traço 2, pontas arredondadas; play e stop preenchidos): `play`, `square` (parar), `plus`, `x`, `minus`, `search`, `sliders-horizontal`/`settings-2` (configurar), `scissors`, `keyboard`, `trash-2`, `download`, `layout-grid`, `list`, `circle-help`, `mic`, `headphones`, `check`, `triangle-alert`, `moon`, `sun`, `chevron-down`, `plug`, `arrow-right`, `refresh-cw`, `volume-1`, `repeat`. Tamanhos: 14–16px em botões e linhas, 18px no cabeçalho, 22–26px nos destaques.
 
 ## Files
 - `design/nicoPad Redesign.dc.html` — página com todas as telas lado a lado (1a, 1b e a referência atual). **Comece por aqui.**
-- `design/nicoPad App.dc.html` — o protótipo interativo. A lógica está no `<script>` no fim do arquivo: estados, textos, regras de tecla, corte e download simulado. Parâmetros: `direction` (A/B), `theme`, `screen` (principal/onboarding/config/cortar/youtube/guia), `semCabo`.
+- `design/nicoPad App.dc.html` — o protótipo interativo. A lógica está no `<script>` no fim do arquivo: estados, textos, regras de tecla, corte e download simulado. Parâmetros: `direction` (A/B), `theme`, `screen` (principal/tocando/onboarding/config/cortar/youtube/guia/fechar), `semCabo`.
 - `design/nicoPad Atual.dc.html` — a janela de hoje em Tkinter, como referência do que está sendo substituído.
 - `design/_ds/.../styles.css` — tokens do sistema Modernist (fonte dos hex acima).
 - `nicopad.qss.tmpl` — QSS inicial com os tokens como `{placeholders}`.
@@ -288,6 +310,6 @@ Mesmo conteúdo, chrome diferente:
 1. `theme.py` + QSS + fonte + ícones; janela vazia com cabeçalho, barra lateral, toolbar e status nos dois temas.
 2. Lista (com delegate) ligada ao `Settings` atual; Definir tecla; busca; mapas.
 3. Pads (widget custom) + progresso.
-4. Diálogos: Configurar, Cortar (waveform), YouTube, Guia.
+4. Tocando agora (janela solta) e diálogos: Configurar, Cortar (waveform), YouTube, Guia, Fechar.
 5. Assistente + `setup_done`.
 6. Remover o Tkinter; atualizar `ui.py` → `ui/` (pacote), `requirements.txt` (`PySide6`), `.spec` do PyInstaller (fontes, ícones, plugins Qt), `selftest.py` (rodar sem abrir janela com `QT_QPA_PLATFORM=offscreen`) e o README do repo.

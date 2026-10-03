@@ -76,7 +76,13 @@ def _extra_checks(check, wav) -> None:
         assert abs(float(mixer.render(10)[:, 0].max()) - 0.75) < 1e-6  # voz 1 (0.5) + voz 3 a 50% (0.25)
         mixer.stop(1)  # parar uma voz não toca nas outras
         assert [voice[0] for voice in mixer.active()] == [3], mixer.active()
-        return "loop repete a voz, nível ao vivo ajusta só uma voz, parar uma deixa as outras tocando"
+        other = Sound("outro", "outro.wav", np.full((1000, 2), 0.5, dtype=np.float32), 44100)
+        mixer.trigger(sound, 1.0, 4)
+        mixer.trigger(other, 1.0, 5)
+        assert {voice[5] for voice in mixer.active()} == {"tom.wav", "outro.wav"}, mixer.active()
+        mixer.stop_sound("tom.wav")  # parar um som (todas as vozes dele) deixa o resto tocando
+        assert {voice[5] for voice in mixer.active()} == {"outro.wav"}, mixer.active()
+        return "loop repete a voz, nível ao vivo ajusta só uma voz, parar uma voz ou um som deixa as outras tocando"
 
     def sounds_folder():
         assert library.default_folder().name == "sons", library.default_folder()
@@ -153,6 +159,15 @@ def _extra_checks(check, wav) -> None:
         path.write_text(json.dumps(raw), encoding="utf-8")
         ignored, _warning = cfg.load(path)
         assert ignored.close_action == "", ignored.close_action
+
+        raw.update(theme="escuro", view="pads", setup_done=True)
+        path.write_text(json.dumps(raw), encoding="utf-8")
+        looks, _warning = cfg.load(path)
+        assert (looks.theme, looks.view, looks.setup_done) == ("escuro", "pads", True), looks
+        raw.update(theme="neon", view="grade", setup_done=0)  # valor estranho cai no padrão, sem travar
+        path.write_text(json.dumps(raw), encoding="utf-8")
+        odd, _warning = cfg.load(path)
+        assert (odd.theme, odd.view, odd.setup_done) == ("", "lista", False), odd
 
         # active fora do intervalo cai no último mapa válido; com um mapa só, isso é o índice 0.
         raw = json.loads(old.read_text(encoding="utf-8"))
@@ -403,16 +418,90 @@ def run() -> int:
         check("reencontro de dispositivos", device_matching)
 
         def interface():
-            import tkinter
+            import os
 
-            from nicopad import ui
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")  # sem abrir janela de verdade
+            from PySide6.QtGui import QFontDatabase
+            from PySide6.QtWidgets import QApplication
 
-            assert ui.NicoPadApp is not None, "classe da interface ausente"
-            assert ui._window_size("1000x700+50+50") == "1000x700"
-            assert ui._window_size("300x200") == "700x440", "tamanho salvo abaixo do mínimo"
-            assert ui._window_size("") == ui.WINDOW_SIZE
-            assert ui._window_size("lixo") == ui.WINDOW_SIZE
-            return f"tkinter {tkinter.TkVersion} carregado; tamanho da janela saneado"
+            from nicopad import theme, ui
+
+            assert ui._window_size("1000x700+50+50") == (1000, 700)
+            assert ui._window_size("300x200") == ui.WINDOW_MIN, "tamanho salvo abaixo do mínimo"
+            assert ui._window_size("") == ui.WINDOW_SIZE and ui._window_size("lixo") == ui.WINDOW_SIZE
+            app = QApplication.instance() or QApplication([])
+            assert theme.load_fonts(ui._asset("fonts/Archivo.ttf")), "fonte Archivo não embutida"
+            assert "Archivo" in QFontDatabase.families(), "Archivo não registrou"
+            theme.apply(app, "claro")
+
+            # a janela inteira, com configuração e arquivos de mentira (sem tocar no JSON do usuário)
+            real_path = cfg.config_path
+            cfg.config_path = lambda: Path(folder) / "ui.json"
+            second = _tone(Path(folder) / "outro.wav", seconds=0.4)
+            settings = cfg.Settings(
+                maps=[cfg.KeyMap("Padrão", [
+                    cfg.Binding(path=str(wav), name="tom", vk=70, key="F"),
+                    cfg.Binding(path=str(second), name="outro", vk=71, key="G"),
+                    cfg.Binding(path=str(Path(folder) / "sumiu.wav"), name="sumiu"),
+                ])],
+                setup_done=True,
+            )
+            win = ui.NicoPadApp(settings, None, services=False)
+            try:
+                win.resize(*ui.WINDOW_SIZE)
+                win.show()
+                app.processEvents()
+                for view in ("lista", "pads"):
+                    win.set_view(view)
+                    assert not win.grab().isNull(), view
+                    assert len(win.visible_indices()) == 3
+                assert win.row_state(2).missing and not win.row_state(0).missing
+                # busca: todas as palavras precisam aparecer em nome+tecla+caminho
+                win.search_field.setText("tom f")
+                assert win.visible_indices() == [0], win.visible_indices()
+                win.search_field.setText("")
+                # definir tecla: a repetida sai do outro som e Esc cancela
+                win.start_binding(1)
+                assert win.row_state(1).listening
+                win.apply_binding((70, False, "F"))
+                assert settings.bindings[1].vk == 70 and settings.bindings[0].vk == 0, "tecla repetida não trocou de dono"
+                win.start_binding(0)
+                win.apply_binding((ui.window.ESC, False, "Esc"))
+                assert settings.bindings[0].vk == 0 and win.pending is None
+                win.start_stop_binding()
+                win.apply_binding((0x13, False, "Pause"))
+                assert settings.stop_vk == 0x13 and win.stop_button.trailing == "chip:Pause"
+                # progresso vem das vozes do motor; parar um som deixa os outros
+                win.engine._out_mixer = Mixer(44100)
+                win.play_sound(0)
+                win.play_sound(1)
+                win.engine._out_mixer.render(500)
+                win.refresh_voices()
+                assert win.row_state(0).progress is not None and win.row_state(1).progress is not None
+                assert win.active_button.trailing == "count:2", win.active_button.trailing
+                win.toggle_play(0)
+                assert win.row_state(0).progress is None and win.row_state(1).progress is not None
+                win.toggle_playing_window()
+                app.processEvents()
+                assert len(win.playing_window.rows) == 1 and not win.playing_window.grab().isNull()
+                win.stop_all()
+                assert not win.progress and win.active_button.trailing == "count:0"
+                # tema: troca, pinta nos dois e guarda a escolha
+                win.toggle_theme()
+                assert settings.theme == "escuro" and not win.grab().isNull()
+                win.show_wizard(1)
+                for step in range(1, 5):
+                    win.wizard.go(step)
+                    assert not win.wizard.grab().isNull(), step
+                win.stack.setCurrentIndex(0)
+            finally:
+                win._tick_timer.stop()
+                win._save_timer.stop()
+                win.engine.stop()
+                win.close()
+                cfg.config_path = real_path
+                theme.apply(app, "claro")
+            return "janela nos dois temas, lista e pads, busca, teclas, progresso, Tocando agora e assistente"
 
         check("módulo da interface", interface)
         _extra_checks(check, wav)

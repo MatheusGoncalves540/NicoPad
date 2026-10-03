@@ -16,14 +16,16 @@
 <section data-screen-label="Turno 1" style="display:flex;flex-direction:column;gap:32px;padding:56px;font-family:var(--font-body);color:var(--color-text)">
   <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
     <span style="font-family:var(--font-heading);font-weight:800;font-size:42px;letter-spacing:-0.02em;line-height:1.1">nicoPad — redesign</span>
-    <span style="font-size:16px">Duas direções no sistema Modernist, pensadas para um toolkit nativo multiplataforma. Tudo é clicável: toque os sons com o teclado, troque Pads/Lista, abra Configurar som, Cortar, YouTube, o guia (?) e o assistente (Configurar áudio). O ícone de lua alterna claro/escuro.</span>
+    <span style="font-size:16px">Duas direções no sistema Modernist, pensadas para um toolkit nativo multiplataforma. Tudo é clicável: toque os sons com o teclado, troque Pads/Lista, abra Tocando agora (loop, volume e parar por som), Configurar som, Cortar, YouTube, o guia (?) e o assistente (Configurar áudio). O ícone de lua alterna claro/escuro.</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:56px;align-items:flex-start">
     <div id="1a" style="display:flex;flex-direction:column;gap:20px">
       <div style="display:flex;align-items:center;gap:12px"><span style="font-weight:800;font-size:14px;padding:4px 10px;background:#ec3013;color:#f3f2f2">1a</span><span style="font-family:var(--font-heading);font-weight:800;font-size:24px">Painel — barra lateral com mapas e áudio</span></div>
       <span style="font-size:14px;max-width:1180px">Abre na lista (mais perto do app atual). Mapas e o estado do áudio ficam sempre visíveis à esquerda; «Parar tudo» e o volume geral ficam embaixo. As ações de cada som aparecem na própria linha, no lugar das duas barras de botões.</span>
       <dc-import name="nicoPad App" direction="A" theme="claro" screen="principal" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="A" theme="claro" screen="tocando" hint-size="1182px,762px"></dc-import>
       <dc-import name="nicoPad App" direction="A" theme="escuro" screen="config" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="A" theme="claro" screen="fechar" hint-size="1182px,762px"></dc-import>
       <dc-import name="nicoPad App" direction="A" theme="claro" screen="onboarding" sem-cabo="{{ true }}" hint-size="1182px,762px"></dc-import>
       <dc-import name="nicoPad App" direction="A" theme="claro" screen="cortar" hint-size="1182px,762px"></dc-import>
     </div>
@@ -31,6 +33,7 @@
       <div style="display:flex;align-items:center;gap:12px"><span style="font-weight:800;font-size:14px;padding:4px 10px;background:#ec3013;color:#f3f2f2">1b</span><span style="font-family:var(--font-heading);font-weight:800;font-size:24px">Mesa — pads grandes, faixa de roteamento</span></div>
       <span style="font-size:14px;max-width:1180px">Abre nos pads. A barra vermelha leva o mascote e os mapas como abas; logo abaixo, uma faixa em quatro células mostra para onde o som vai (mic, sua voz, seu fone) e o volume. Clicar em qualquer célula abre o assistente.</span>
       <dc-import name="nicoPad App" direction="B" theme="escuro" screen="principal" hint-size="1182px,762px"></dc-import>
+      <dc-import name="nicoPad App" direction="B" theme="escuro" screen="tocando" hint-size="1182px,762px"></dc-import>
       <dc-import name="nicoPad App" direction="B" theme="claro" screen="principal" sem-cabo="{{ true }}" hint-size="1182px,762px"></dc-import>
       <dc-import name="nicoPad App" direction="B" theme="escuro" screen="youtube" hint-size="1182px,762px"></dc-import>
       <dc-import name="nicoPad App" direction="B" theme="claro" screen="guia" hint-size="1182px,762px"></dc-import>

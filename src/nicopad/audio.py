@@ -269,11 +269,12 @@ class MicBridge:
 class Voice:
     """Uma execução em andamento de um som: posição, ganho e se repete."""
 
-    __slots__ = ("id", "name", "data", "position", "gain", "level", "loop")
+    __slots__ = ("id", "name", "path", "data", "position", "gain", "level", "loop")
 
-    def __init__(self, id: int, name: str, data: np.ndarray, gain: float):
+    def __init__(self, id: int, name: str, data: np.ndarray, gain: float, path: str = ""):
         self.id = id
         self.name = name
+        self.path = path  # de qual arquivo veio: a interface para só aquele som
         self.data = data
         self.position = 0
         self.gain = float(gain)
@@ -294,7 +295,7 @@ class Mixer:
 
     def trigger(self, sound: Sound, gain: float = 1.0, voice_id: int = 0) -> None:
         """Chamado pela thread do hook: só enfileira a voz, nada de cálculo."""
-        voice = Voice(voice_id, sound.name, sound.at(self.samplerate), gain)
+        voice = Voice(voice_id, sound.name, sound.at(self.samplerate), gain, sound.path)
         with self._lock:
             self._voices.append(voice)
             if len(self._voices) > MAX_VOICES:
@@ -307,6 +308,10 @@ class Mixer:
     def stop(self, voice_id: int) -> None:
         with self._lock:
             self._voices = [voice for voice in self._voices if voice.id != voice_id]
+
+    def stop_sound(self, path: str) -> None:
+        with self._lock:
+            self._voices = [voice for voice in self._voices if voice.path != path]
 
     def set_loop(self, voice_id: int, loop: bool) -> None:
         with self._lock:
@@ -321,10 +326,10 @@ class Mixer:
                     voice.level = level
 
     def active(self) -> list:
-        """(id, nome, fração tocada, em loop, nível) de cada voz, para a tela «Tocando agora»."""
+        """(id, nome, fração tocada, em loop, nível, caminho) de cada voz, para «Tocando agora» e os pads."""
         with self._lock:
             return [
-                (voice.id, voice.name, voice.position / len(voice.data), voice.loop, voice.level)
+                (voice.id, voice.name, voice.position / len(voice.data), voice.loop, voice.level, voice.path)
                 for voice in self._voices
             ]
 
@@ -429,9 +434,16 @@ class AudioEngine:
             self._mon_mixer.trigger(sound, sound.monitor_gain, voice_id)
 
     def active(self) -> list:
-        """Vozes tocando agora na saída principal: (id, nome, fração, loop, nível)."""
+        """Vozes tocando agora na saída principal: (id, nome, fração, loop, nível, caminho)."""
         mixer = self._out_mixer
         return mixer.active() if mixer is not None else []
+
+    def stop_sound(self, path: str) -> None:
+        """Cala só este som (todas as suas vozes, inclusive a prévia fora dos streams)."""
+        for mixer in (self._out_mixer, self._mon_mixer):
+            if mixer is not None:
+                mixer.stop_sound(path)
+        sd.stop()
 
     def stop_voice(self, voice_id: int) -> None:
         for mixer in (self._out_mixer, self._mon_mixer):

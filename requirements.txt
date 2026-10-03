@@ -1,5 +1,8 @@
 # Soundpad - dependências (instaladas em .venv pelo `task setup`)
 
+# Interface (Qt Widgets + QSS).
+PySide6>=6.7
+
 numpy>=1.24
 sounddevice>=0.4.6
 soundfile>=0.12

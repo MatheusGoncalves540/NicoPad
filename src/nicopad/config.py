@@ -14,6 +14,15 @@ FILENAME = "nicopad.json"
 # configuração. Ela é lida de lá uma vez e regravada com o nome atual.
 LEGACY = "soundpad.json"
 
+THEMES = ("claro", "escuro")
+VIEWS = ("lista", "pads")
+
+
+def is_first_run() -> bool:
+    """True quando ainda não existe configuração nenhuma (nem a do nome antigo)."""
+    path = config_path()
+    return not path.exists() and not path.with_name(LEGACY).exists()
+
 
 def config_path() -> Path:
     """Fica ao lado do .exe (portátil); no código-fonte, na raiz do projeto."""
@@ -61,6 +70,9 @@ class Settings:
     stop_vk: int = 0  # tecla global de "parar tudo"; 0 = sem tecla definida
     stop_extended: bool = False
     stop_key: str = ""
+    theme: str = ""  # "claro" | "escuro"; vazio segue o tema do sistema
+    view: str = "lista"  # "lista" | "pads"
+    setup_done: bool = False  # o assistente de primeiro uso já foi concluído (ou pulado)
 
     def __post_init__(self):
         if not self.maps:
@@ -170,6 +182,9 @@ def load(path=None) -> tuple:
         stop_vk=stop_vk,
         stop_extended=bool(raw.get("stop_extended")),
         stop_key=str(raw.get("stop_key") or ""),
+        theme=raw.get("theme") if raw.get("theme") in THEMES else "",
+        view=raw.get("view") if raw.get("view") in VIEWS else "lista",
+        setup_done=bool(raw.get("setup_done")),
     )
     raw_maps = raw.get("maps")
     if isinstance(raw_maps, list) and raw_maps:

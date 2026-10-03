@@ -23,8 +23,9 @@ for package in ("sounddevice", "soundfile", "_sounddevice_data", "_soundfile_dat
 # permite difundir AS IS; quem instala o driver é o usuário).
 datas.append((os.path.join(ROOT, "packaging", "vbcable"), "vbcable"))
 
-# Logo: ícone do executável e imagem mostrada na janela.
+# Logo: ícone do executável e imagem mostrada na janela. Fonte Archivo (OFL): embutida, nunca cai em outra.
 datas.append((os.path.join(ROOT, "packaging", "nicopad.png"), "."))
+datas.append((os.path.join(ROOT, "packaging", "fonts"), "fonts"))
 ICON = os.path.join(ROOT, "packaging", "nicopad.ico")
 
 EXCLUDES = [
@@ -37,7 +38,7 @@ EXCLUDES = [
     "pytest", "setuptools", "pip", "wheel", "pkg_resources",
     "unittest", "doctest", "pydoc", "test", "lib2to3",
     "numpy.f2py", "numpy.distutils", "numpy.testing",
-    "tkinter.test", "tkinter.tix", "tkinter.dnd",
+    "tkinter", "_tkinter",  # a interface é Qt (PySide6); os módulos Qt que não usamos nem entram
 ]
 
 analysis = Analysis(
