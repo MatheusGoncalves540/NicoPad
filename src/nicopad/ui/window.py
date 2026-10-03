@@ -45,6 +45,7 @@ from nicopad.ui.wizard import LogoTile, Wizard
 AUDIO_FILTER = "Áudio (*.wav *.mp3 *.ogg *.oga *.opus *.flac *.aiff *.aif);;Todos os arquivos (*.*)"
 CABLE_URL = "https://vb-audio.com/Cable/"
 ESC = 0x1B
+CLIP_PREVIEW = "<prévia do corte>"  # caminho das vozes da prévia do corte (não é um arquivo)
 WINDOW_SIZE = (1180, 728)
 WINDOW_MIN = (900, 600)
 TICK_MS = 33  # ~30 fps, só enquanto algum som toca
@@ -219,13 +220,16 @@ class NicoPadApp(QMainWindow):
         profiles.clicked.connect(lambda: profiles.popup(self._profiles_menu()))
         options = Button("Configurações", "text", trailing="chevron")
         options.clicked.connect(lambda: options.popup(self._settings_menu()))
+        accent_button = Button(kind="icon", icon="palette", size=36, icon_size=18)
+        accent_button.setToolTip("Cor de destaque")
+        accent_button.clicked.connect(self.accent_dialog)
         self.theme_button = Button(kind="icon", icon="moon", size=36, icon_size=18)
         self.theme_button.setToolTip("Trocar o tema")
         self.theme_button.clicked.connect(self.toggle_theme)
         help_button = Button(kind="icon", icon="help", size=36, icon_size=18)
         help_button.setToolTip("Como configurar o cabo")
         help_button.clicked.connect(self.guide_dialog)
-        for widget in (profiles, options, self.theme_button, help_button):
+        for widget in (profiles, options, accent_button, self.theme_button, help_button):
             group.addWidget(widget)
         line.addLayout(group)
         return header
@@ -369,11 +373,20 @@ class NicoPadApp(QMainWindow):
         self.settings.theme = theme.name()
         self._save()
 
-    def apply_theme(self, name: str) -> None:
-        theme.apply(QApplication.instance(), name)
+    def apply_theme(self, name: str, accent: str | None = None) -> None:
+        theme.apply(QApplication.instance(), name, accent)
         self._sync_theme_button()
         for widget in self.findChildren(QWidget):
             widget.update()
+
+    def set_accent(self, accent: str) -> None:
+        """Troca a cor de destaque do app inteiro ("" volta ao vermelho original) e guarda a escolha."""
+        self.settings.accent = accent
+        self.apply_theme(theme.name(), accent)
+        self.save_later()
+
+    def accent_dialog(self) -> None:
+        dialogs.AccentDialog(self).exec()
 
     def _sync_theme_button(self) -> None:
         self.theme_button.icon_name = "sun" if theme.name() == "escuro" else "moon"
@@ -778,15 +791,22 @@ class NicoPadApp(QMainWindow):
             return
         self.engine.preview(sound)
 
-    def preview_clip(self, binding, start: float, end: float) -> None:
+    def preview_clip(self, binding, start: float, end: float):
+        """Ouve o trecho do corte do começo; um clique novo reinicia em vez de empilhar. Devolve a duração (s)."""
+        self.stop_clip()
         try:
             clip = load_sound(
                 binding.path, start=start, end=end, gain=binding.gain, monitor=binding.monitor, monitor_gain=binding.monitor_gain
             )
         except Exception as exc:
             self.flash(f"Não consegui ouvir o trecho: {exc}")
-            return
+            return None
+        clip.path = CLIP_PREVIEW  # marca própria: parar a prévia não mexe no som de verdade
         self.engine.preview(clip)
+        return len(clip.data) / clip.samplerate
+
+    def stop_clip(self) -> None:
+        self.engine.stop_sound(CLIP_PREVIEW)
 
     def toggle_play(self, index: int) -> None:
         """Clicar de novo enquanto toca para só aquele som."""
@@ -1049,7 +1069,8 @@ class NicoPadApp(QMainWindow):
         if has_cable:
             glyph.set_icon("check", "text")
             title.set_text(title.text(), "text")
-            value.set_text(_shorten(output.name, 40))
+            value.set_text(output.name.replace(" Virtual Cable", ""))  # «CABLE Input (VB-Audio)» cabe na barra
+            value.setToolTip(output.name)
         else:
             name = output.name if output is not None else "Sem saída"
             glyph.set_icon("alert", "accent_700")
@@ -1183,7 +1204,7 @@ class NicoPadApp(QMainWindow):
     # -------------------------------------------------------------------- menus
 
     def _tick_label(self, on: bool, text: str) -> str:
-        return ("✓  " if on else "     ") + text
+        return ("•  " if on else "    ") + text
 
     def _profiles_menu(self) -> QMenu:
         menu = QMenu(self)
@@ -1331,7 +1352,7 @@ class NicoPadApp(QMainWindow):
 
     def _apply_settings(self, settings) -> None:
         """Troca a configuração inteira (importar perfil) e reabre o que depende dela."""
-        for field in ("geometry", "close_action", "theme", "view", "setup_done"):
+        for field in ("geometry", "close_action", "theme", "accent", "view", "setup_done"):
             setattr(settings, field, getattr(self.settings, field))  # preferências da máquina, não do perfil
         self.settings = settings
         self.sounds = {}
@@ -1482,7 +1503,7 @@ def run(settings, warning: str | None = None, first_run: bool = False) -> int:
     app.setQuitOnLastWindowClosed(False)  # fechar vai para a bandeja; quem encerra é o `_quit`
     if not theme.load_fonts(_asset("fonts/Archivo.ttf")):
         warning = warning or "fonte Archivo não encontrada: o visual pode sair diferente do desenho"
-    theme.apply(app, settings.theme or theme.system_theme())
+    theme.apply(app, settings.theme or theme.system_theme(), settings.accent)
     window = NicoPadApp(settings, warning, first_run)
     window.show()
     return app.exec()

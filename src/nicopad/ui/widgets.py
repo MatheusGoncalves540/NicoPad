@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QRectF, QSize, Qt
-from PySide6.QtGui import QFont, QFontMetrics, QPainter, QTextLayout
+from PySide6.QtGui import QFont, QFontMetrics, QPainter, QTextLayout, QTextOption
 from PySide6.QtWidgets import (
     QAbstractButton,
     QComboBox,
@@ -32,22 +32,26 @@ def hbox(parent=None, margins=(0, 0, 0, 0), spacing=0) -> QHBoxLayout:
 
 def wrap_lines(text: str, fnt, width: int, max_lines: int) -> list:
     """Quebra o texto em até `max_lines` linhas; a última termina em «…» se faltou espaço."""
-    layout = QTextLayout(text, fnt)
-    layout.beginLayout()
-    spans = []
-    while True:
-        line = layout.createLine()
-        if not line.isValid():
-            break
-        line.setLineWidth(max(1, width))
-        spans.append((line.textStart(), line.textLength()))
-    layout.endLayout()
-    if len(spans) <= max_lines:
-        return [text[start : start + length].rstrip() for start, length in spans] or [""]
-    lines = [text[start : start + length].rstrip() for start, length in spans[: max_lines - 1]]
-    tail = text[spans[max_lines - 1][0] :]
-    lines.append(QFontMetrics(fnt).elidedText(tail, Qt.TextElideMode.ElideRight, width))
-    return lines
+    option = QTextOption()
+    option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)  # caminhos sem espaço também quebram
+    lines = []
+    for paragraph in text.split(chr(10)):  # o QTextLayout não quebra em quebra de linha sozinho
+        layout = QTextLayout(paragraph, fnt)
+        layout.setTextOption(option)
+        layout.beginLayout()
+        found = []
+        while True:
+            line = layout.createLine()
+            if not line.isValid():
+                break
+            line.setLineWidth(max(1, width))
+            found.append(paragraph[line.textStart() : line.textStart() + line.textLength()].rstrip())
+        layout.endLayout()
+        lines.extend(found or [""])
+    if len(lines) <= max_lines:
+        return lines
+    tail = " ".join(lines[max_lines - 1 :])
+    return lines[: max_lines - 1] + [QFontMetrics(fnt).elidedText(tail, Qt.TextElideMode.ElideRight, width)]
 
 
 class Box(QWidget):
@@ -226,8 +230,8 @@ class Button(QAbstractButton):
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
         if kind == "icon":
             self.setFixedSize(*(size if isinstance(size, tuple) else (size or 32, size or 32)))
-        else:
-            self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        else:  # encolhe (e corta o texto com «…») em vez de vazar quando falta espaço
+            self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setCheckable(kind in ("seg", "map"))
 
     # ---- medidas e fonte

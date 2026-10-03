@@ -6,6 +6,8 @@ de pintar; trocar de tema é `apply(app, nome)` e repintar. Nada de `border-radi
 
 from __future__ import annotations
 
+import colorsys
+
 from PySide6.QtCore import QByteArray, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QPalette
 from PySide6.QtSvg import QSvgRenderer
@@ -27,16 +29,105 @@ THEMES = {
 LOGO_TILE = "#ffffff"  # a logo tem fundo branco: o quadrado branco vale nos dois temas
 DISABLED_OPACITY = 0.45
 
-_state = {"name": "claro"}
+# ----------------------------------------------------------------------- cor de destaque
+# A paleta acima é o vermelho de referência. Qualquer outra cor de destaque é decidida por
+# perguntas sobre ela, e não por uma tabela de cores: «quanto mais escuro/claro que a cor base é
+# este tom?» e «quão mais (ou menos) saturado?». As respostas saem do próprio vermelho de
+# referência (de cada tema) e valem para qualquer cor nova.
+
+REFERENCE_ACCENT = THEMES["claro"]["accent"]
+_VARIANTS = ("accent", "accent_100", "accent_600", "accent_700", "accent_800")
+MIN_CONTRAST = 3.0  # o texto sobre o destaque (a cor bg do tema) precisa continuar legível
+
+
+def _hls(value: str) -> tuple:
+    color = QColor(value)
+    return colorsys.rgb_to_hls(color.redF(), color.greenF(), color.blueF())
+
+
+def _hex(h: float, l: float, s: float) -> str:
+    return QColor.fromRgbF(*colorsys.hls_to_rgb(h % 1.0, min(1.0, max(0.0, l)), min(1.0, max(0.0, s)))).name()
+
+
+def _luminance(value: str) -> float:
+    color = QColor(value)
+    parts = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in (color.redF(), color.greenF(), color.blueF())]
+    return 0.2126 * parts[0] + 0.7152 * parts[1] + 0.0722 * parts[2]
+
+
+def _contrast(first: str, second: str) -> float:
+    high, low = sorted((_luminance(first), _luminance(second)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+def _relations() -> dict:
+    """Por tema e por tom: (diferença de luminosidade para a cor base, fator de saturação)."""
+    _h, base_l, base_s = _hls(REFERENCE_ACCENT)
+    found = {}
+    for name, tokens in THEMES.items():
+        found[name] = {}
+        for token in _VARIANTS:
+            _h, light, sat = _hls(tokens[token])
+            found[name][token] = (light - base_l, sat / base_s)
+    return found
+
+
+_RELATIONS = _relations()
+_palettes: dict = {}
+
+
+def palette(theme: str, accent: str = "") -> dict:
+    """Os tokens do tema com a cor de destaque trocada (e os tons derivados dela)."""
+    tokens = dict(THEMES[theme])
+    if not accent or accent.lower() == REFERENCE_ACCENT:
+        return tokens
+    key = (theme, accent.lower())
+    if key not in _palettes:
+        hue, light, sat = _hls(accent)
+        relation = _RELATIONS[theme]
+        shift, factor = relation["accent"]
+        # a cor de destaque tem de contrastar com o fundo: escurece (tema claro) ou clareia (escuro)
+        step = -0.01 if _luminance(tokens["bg"]) > 0.5 else 0.01
+        base = light + shift
+        while _contrast(_hex(hue, base, sat * factor), tokens["bg"]) < MIN_CONTRAST and 0.04 < base < 0.96:
+            base += step
+        anchor = base - shift
+        for token in _VARIANTS:
+            delta, factor = relation[token]
+            level = anchor + delta
+            if token == "accent_100":  # o fundo suave do destaque: sempre quase branco (claro) ou quase preto (escuro)
+                level = min(0.97, max(level, 0.93)) if theme == "claro" else min(0.22, max(level, 0.10))
+            tokens[token] = _hex(hue, level, sat * factor)
+        _palettes[key] = tokens
+    return _palettes[key]
+
+
+# Matriz de escolha: cada coluna é um matiz; cada linha, um jeito de ser (viva, profunda, suave).
+SWATCH_HUES = (8, 28, 45, 90, 140, 170, 195, 215, 245, 275, 325)
+SWATCH_ROWS = ((0.85, 0.50), (0.72, 0.36), (0.50, 0.46))  # (saturação, luminosidade)
+
+
+def swatches() -> list:
+    """Linhas de cores `#rrggbb` da matriz de escolha (a primeira é o vermelho de referência)."""
+    rows = [[_hex(hue / 360, light, sat) for hue in SWATCH_HUES] + [_hex(0, light * 0.7, 0.04)] for sat, light in SWATCH_ROWS]
+    rows[0][0] = REFERENCE_ACCENT
+    return rows
+
+
+_state = {"name": "claro", "accent": "", "tokens": THEMES["claro"]}
 
 
 def name() -> str:
     return _state["name"]
 
 
+def accent() -> str:
+    return _state["accent"]
+
+
 def color(token: str, alpha: float | None = None) -> QColor:
     """Cor do token no tema atual; `alpha` troca a opacidade (mistura sobre o fundo)."""
-    value = THEMES[_state["name"]][token]
+    value = _state["tokens"][token]
     base, own = value if isinstance(value, tuple) else (value, 1.0)
     result = QColor(base)
     result.setAlphaF(own if alpha is None else alpha)
@@ -106,6 +197,9 @@ _ICONS = {
     "arrow": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     "refresh": '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>'
     '<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+    "palette": '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/>'
+    '<circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125'
+    '-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
     "repeat": '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/>'
     '<path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
     "minus": '<path d="M5 12h14"/>',
@@ -193,17 +287,20 @@ def build_qss() -> str:
         "muted": css(color("text", 0.60)),
         "track": css(color("text", 0.12)),
     }
-    for token in THEMES[_state["name"]]:
+    for token in _state["tokens"]:
         values[token] = css(color(token))
     values["text"] = css(text)
     return _QSS.format(**values)
 
 
-def apply(app, theme: str) -> None:
-    """Põe o tema no app inteiro: estilo Fusion + paleta + QSS. Quem pinta à mão repinta sozinho."""
+def apply(app, theme: str, accent: str | None = None) -> None:
+    """Põe o tema no app inteiro: estilo Fusion + paleta + QSS. `accent=None` mantém a cor atual."""
     _state["name"] = theme if theme in THEMES else "claro"
+    if accent is not None:
+        _state["accent"] = accent
+    _state["tokens"] = palette(_state["name"], _state["accent"])
     app.setStyle("Fusion")
-    palette = QPalette()
+    qt_palette = QPalette()
     for role, token in (
         (QPalette.ColorRole.Window, "bg"),
         (QPalette.ColorRole.Base, "bg"),
@@ -216,7 +313,7 @@ def apply(app, theme: str) -> None:
         (QPalette.ColorRole.Highlight, "accent"),
         (QPalette.ColorRole.HighlightedText, "bg"),
     ):
-        palette.setColor(role, color(token))
-    app.setPalette(palette)
+        qt_palette.setColor(role, color(token))
+    app.setPalette(qt_palette)
     app.setFont(font(14))
     app.setStyleSheet(build_qss())

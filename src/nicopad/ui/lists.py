@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QRectF, Qt
+from PySide6.QtCore import QEvent, QRectF, Qt
 from PySide6.QtGui import QFontMetrics, QPainter
 from PySide6.QtWidgets import QGridLayout, QScrollArea, QSizePolicy, QWidget
 
 from nicopad import theme
-from nicopad.ui.widgets import Box, Button, vbox, wrap_lines
+from nicopad.ui.widgets import Box, Button, Text, vbox, wrap_lines
 
 
 @dataclass
@@ -228,15 +228,32 @@ class ListView(_Keys, QWidget):
         layout = vbox(self)
         layout.addWidget(self.header)
         layout.addWidget(self.area, 1)
+        self.empty = QWidget(self.body)
+        empty = vbox(self.empty, (16, 28, 16, 28), 4)
+        self.empty_title, self.empty_note = Text("", 15, 800), Text("", 13, 400, alpha=0.6, wrap=True)
+        empty.addWidget(self.empty_title)
+        empty.addWidget(self.empty_note)
+        self.column.insertWidget(0, self.empty)
+        # a barra de rolagem come largura das linhas: o cabeçalho acompanha para as colunas alinharem
+        self.area.viewport().installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched is self.area.viewport() and event.type() == QEvent.Type.Resize:
+            self.header.setFixedWidth(event.size().width())
+        return False
 
     def refresh(self, indices: list) -> None:
+        query = self.win.query.strip()
+        self.empty.setVisible(not indices)
+        self.empty_title.set_text(f"Nenhum som encontrado para «{query}»" if query else "Nenhum som neste mapa")
+        self.empty_note.set_text("" if query else "Clique em «Adicionar som» ou baixe um áudio do YouTube.")
         for row in self.rows.values():
             row.setParent(None)
             row.deleteLater()
         self.rows = {}
         for position, index in enumerate(indices):
             row = SoundRow(self, index)
-            self.column.insertWidget(position, row)
+            self.column.insertWidget(position + 1, row)
             self.rows[index] = row
 
     def sync(self, indices=None) -> None:

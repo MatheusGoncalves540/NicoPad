@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -72,6 +73,7 @@ class Settings:
     stop_key: str = ""
     theme: str = ""  # "claro" | "escuro"; vazio segue o tema do sistema
     view: str = "lista"  # "lista" | "pads"
+    accent: str = ""  # cor de destaque "#rrggbb"; vazio = o vermelho original
     setup_done: bool = False  # o assistente de primeiro uso já foi concluído (ou pulado)
 
     def __post_init__(self):
@@ -184,6 +186,7 @@ def load(path=None) -> tuple:
         stop_key=str(raw.get("stop_key") or ""),
         theme=raw.get("theme") if raw.get("theme") in THEMES else "",
         view=raw.get("view") if raw.get("view") in VIEWS else "lista",
+        accent=raw.get("accent") if re.fullmatch(r"#[0-9a-fA-F]{6}", str(raw.get("accent"))) else "",
         setup_done=bool(raw.get("setup_done")),
     )
     raw_maps = raw.get("maps")

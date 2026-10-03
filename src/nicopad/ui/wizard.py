@@ -153,7 +153,7 @@ class Wizard(QWidget):
             ("2", "Execute VBCABLE_Setup_x64.exe como administrador e reinicie o PC."),
         ):
             row = hbox(spacing=10)
-            number_label = Text(number, 20, 800, tone="accent")
+            number_label = Text(number, 14, 800, tone="accent")
             number_label.setFixedWidth(16)
             row.addWidget(number_label)
             row.addWidget(Text(text, 14, 400, wrap=True), 1)
@@ -211,7 +211,7 @@ class Wizard(QWidget):
         box = Box(border="a2", tone="text")
         line = hbox(box, (16, 16, 16, 16), 12)
         line.addWidget(Icon("mic", 22))
-        line.addWidget(Text("CABLE Output (VB-Audio Virtual Cable)", 22, 800), 1)
+        line.addWidget(Text("CABLE Output (VB-Audio Virtual Cable)", 22, 800, wrap=True), 1)
         layout.addWidget(box)
         layout.addWidget(Text("Toque um som de teste e confira no Discord se o indicador de voz acende.", 14, 400, wrap=True))
         self.test = Button("Tocar som de teste", "secondary", icon="play", icon_size=14)
@@ -242,7 +242,7 @@ class Wizard(QWidget):
             block = Box("bg")
             column = vbox(block, (14, 14, 14, 14), 6)
             column.addWidget(Icon(icon, 20, tone="accent"))
-            column.addWidget(Text(title, 14, 800))
+            column.addWidget(Text(title, 14, 800, wrap=True))
             column.addWidget(Text(note, 12, 400, alpha=0.6, wrap=True))
             column.addStretch(1)
             blocks.append(block)

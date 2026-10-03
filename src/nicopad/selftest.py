@@ -160,14 +160,14 @@ def _extra_checks(check, wav) -> None:
         ignored, _warning = cfg.load(path)
         assert ignored.close_action == "", ignored.close_action
 
-        raw.update(theme="escuro", view="pads", setup_done=True)
+        raw.update(theme="escuro", view="pads", setup_done=True, accent="#2f6fed")
         path.write_text(json.dumps(raw), encoding="utf-8")
         looks, _warning = cfg.load(path)
-        assert (looks.theme, looks.view, looks.setup_done) == ("escuro", "pads", True), looks
-        raw.update(theme="neon", view="grade", setup_done=0)  # valor estranho cai no padrão, sem travar
+        assert (looks.theme, looks.view, looks.setup_done, looks.accent) == ("escuro", "pads", True, "#2f6fed"), looks
+        raw.update(theme="neon", view="grade", setup_done=0, accent="azul")  # valor estranho cai no padrão, sem travar
         path.write_text(json.dumps(raw), encoding="utf-8")
         odd, _warning = cfg.load(path)
-        assert (odd.theme, odd.view, odd.setup_done) == ("", "lista", False), odd
+        assert (odd.theme, odd.view, odd.setup_done, odd.accent) == ("", "lista", False, ""), odd
 
         # active fora do intervalo cai no último mapa válido; com um mapa só, isso é o índice 0.
         raw = json.loads(old.read_text(encoding="utf-8"))
@@ -216,6 +216,24 @@ def _extra_checks(check, wav) -> None:
         assert not icon.ok, "o ícone deveria sair da bandeja"
         return "ícone criado na bandeja, pronto para o clique e removido"
 
+    def accent_colors():
+        from nicopad import theme
+
+        assert theme.palette("claro", theme.REFERENCE_ACCENT) == theme.THEMES["claro"], "o vermelho original mudou"
+        assert theme.palette("escuro", "") == theme.THEMES["escuro"]
+        for accent in [row_color for row in theme.swatches() for row_color in row]:
+            light, dark = theme.palette("claro", accent), theme.palette("escuro", accent)
+            for name, tokens in (("claro", light), ("escuro", dark)):
+                assert theme._contrast(tokens["accent"], tokens["bg"]) >= theme.MIN_CONTRAST - 0.05, (accent, name)
+                for token in ("accent_700", "accent_800"):  # texto sobre o fundo suave do destaque
+                    assert theme._contrast(tokens[token], tokens["accent_100"]) >= 4.5, (accent, name, token)
+            lum = lambda tokens, token: theme._luminance(tokens[token])
+            # as relações do vermelho valem para qualquer cor: no claro os tons descem, no escuro sobem
+            assert lum(light, "accent_800") < lum(light, "accent_700") < lum(light, "accent") < lum(light, "accent_100"), accent
+            assert lum(dark, "accent_100") < lum(dark, "accent") < lum(dark, "accent_600") < lum(dark, "accent_700"), accent
+        return "vermelho intacto; as 36 cores da matriz mantêm contraste e a ordem dos tons nos dois temas"
+
+    check("cor de destaque", accent_colors)
     check("lista de aparelhos", device_filter)
     check("volume por som", sound_levels)
     check("vozes: parar e loop", voices_stop_and_loop)
@@ -486,9 +504,24 @@ def run() -> int:
                 assert len(win.playing_window.rows) == 1 and not win.playing_window.grab().isNull()
                 win.stop_all()
                 assert not win.progress and win.active_button.trailing == "count:0"
+                # prévia do corte: um clique novo reinicia (não empilha) e parar cala
+                win.engine._mon_mixer = Mixer(44100)
+                win.preview_clip(settings.bindings[0], 0.0, 0.0)
+                win.preview_clip(settings.bindings[0], 0.0, 0.0)
+                assert len(win.engine._mon_mixer.active()) == 1, win.engine._mon_mixer.active()
+                win.stop_clip()
+                assert not win.engine._mon_mixer.active()
                 # tema: troca, pinta nos dois e guarda a escolha
                 win.toggle_theme()
                 assert settings.theme == "escuro" and not win.grab().isNull()
+                win.set_accent("#2f6fed")  # a cor escolhida sobrevive à troca claro/escuro
+                for _ in range(2):
+                    win.toggle_theme()
+                    assert theme.accent() == "#2f6fed" and settings.accent == "#2f6fed"
+                    assert theme.color("accent").name() == theme.palette(theme.name(), "#2f6fed")["accent"]
+                    assert not win.grab().isNull()
+                win.set_accent("")
+                assert theme.color("accent").name() == theme.palette(theme.name(), "")["accent"]
                 win.show_wizard(1)
                 for step in range(1, 5):
                     win.wizard.go(step)

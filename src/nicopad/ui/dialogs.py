@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import threading
+import time
 import webbrowser
 
 import numpy as np
-from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QDialog,
+    QGridLayout,
     QGraphicsOpacityEffect,
     QLineEdit,
     QProgressBar,
@@ -104,7 +107,7 @@ def ask_text(parent, title: str, label: str, initial: str = "") -> str | None:
 
 def ask_close_action(parent):
     """(«hide» | «quit» | None, lembrar?). None = cancelou."""
-    dialog = Dialog(parent, "Fechar a janela", 460)
+    dialog = Dialog(parent, "Fechar a janela", 540)  # três botões com texto: 460px cortava «Encerrar o programa»
     dialog.body.setSpacing(14)
     dialog.body.addWidget(Text("Fechar o nicoPad ou deixá-lo na bandeja?", 15, 400, wrap=True))
     dialog.body.addWidget(
@@ -282,6 +285,7 @@ class Waveform(QWidget):
         top = np.abs(table).max(axis=1)
         self.heights = top / top.max() if top.max() > 0 else top
         self.duration, self.start, self.end = duration, start, end
+        self.playhead = None  # segundo que está tocando agora (None = parado)
         self._drag = None
         self.setFixedHeight(150)
         self.setCursor(Qt.CursorShape.SizeHorCursor)
@@ -315,6 +319,10 @@ class Waveform(QWidget):
         p.fillRect(QRectF(xe - 1.5, 2, self.HANDLE, h - 4), accent)
         p.fillRect(QRectF(xs + 1.5, 2, 14, 18), accent)  # bandeira do início: topo, à direita da linha
         p.fillRect(QRectF(xe - 1.5 - 14, h - 2 - 18, 14, 18), accent)  # bandeira do fim: base, à esquerda
+        if self.playhead is not None:  # cabeça de reprodução: linha text com halo de bg para aparecer sobre as barras
+            xp = self._x(self.playhead)
+            p.fillRect(QRectF(xp - 2.5, 2, 5, h - 4), theme.color("bg"))
+            p.fillRect(QRectF(xp - 1, 2, 2, h - 4), theme.color("text"))
         line = theme.color("divider")
         for rect in (QRectF(0, 0, w, 2), QRectF(0, h - 2, w, 2), QRectF(0, 0, 2, h), QRectF(w - 2, 0, 2, h)):
             p.fillRect(rect, line)
@@ -364,7 +372,7 @@ class TrimDialog(Dialog):
         self.body.addWidget(self.wave)
         self.values = []
         blocks = []
-        for title in ("INÍCIO", "FIM", "TRECHO"):
+        for title in ("INÍCIO", "FIM", "TRECHO", "TOCANDO"):
             block = Box("bg")
             layout = vbox(block, (16, 12, 16, 12), 4)
             layout.addWidget(Text(title, 11, 400, alpha=0.6, spacing=0.88))
@@ -375,11 +383,15 @@ class TrimDialog(Dialog):
         self.body.addWidget(cells(*blocks))
         self.wave.changed.connect(self._refresh)
         self._refresh()
+        self.values[3].set_text("—")
+        self._clock = QTimer(self, interval=30)
+        self._clock.timeout.connect(self._advance)
+        self._started = self._length = 0.0
 
         listen = Button("Ouvir trecho", "secondary", icon="play", icon_size=14)
         everything = Button("Tudo", "ghost")
         save = Button("Salvar corte", "primary")
-        listen.clicked.connect(lambda: win.preview_clip(binding, self.wave.start, self.wave.end))
+        listen.clicked.connect(self._listen)
         everything.clicked.connect(self.wave.reset)
         save.clicked.connect(self.accept)
         self.add_actions(listen, everything, None, save)
@@ -388,6 +400,37 @@ class TrimDialog(Dialog):
         start, end = self.wave.start, self.wave.end
         for value, seconds in zip(self.values, (start, end, end - start)):
             value.set_text(seconds_text(seconds))
+
+    def _listen(self) -> None:
+        """Toca o trecho do começo e acompanha a posição na forma de onda."""
+        start = self.wave.start
+        length = self.win.preview_clip(self.binding, start, self.wave.end)
+        if length is None:
+            self._stop_clock()
+            return
+        self._started, self._length, self._from = time.monotonic(), length, start
+        self._clock.start()
+        self._advance()
+
+    def _advance(self) -> None:
+        elapsed = time.monotonic() - self._started
+        if elapsed >= self._length:
+            self._stop_clock()
+            return
+        self.wave.playhead = self._from + elapsed
+        self.values[3].set_text(seconds_text(self.wave.playhead))
+        self.wave.update()
+
+    def _stop_clock(self) -> None:
+        self._clock.stop()
+        self.wave.playhead = None
+        self.values[3].set_text("—")
+        self.wave.update()
+
+    def done(self, result: int) -> None:
+        self._clock.stop()
+        self.win.stop_clip()  # fechar a janela cala a prévia
+        super().done(result)
 
     @property
     def edges(self) -> tuple:
@@ -544,3 +587,60 @@ class GuideDialog(Dialog):
     def _wizard(self) -> None:
         self.open_wizard = True
         self.accept()
+
+
+# ------------------------------------------------------------------- cor de destaque
+
+
+class Swatch(QAbstractButton):
+    """Um quadradinho da matriz de cores; o selecionado ganha contorno de 2px na cor do texto."""
+
+    def __init__(self, value: str):
+        super().__init__()
+        self.value = value
+        self.setFixedSize(36, 36)
+        self.setCheckable(True)
+        self.setToolTip(value)
+
+    def paintEvent(self, _event) -> None:
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor(self.value))
+        if self.isChecked():
+            ring = theme.color("text")
+            for rect in (QRectF(0, 0, 36, 2), QRectF(0, 34, 36, 2), QRectF(0, 0, 2, 36), QRectF(34, 0, 2, 36)):
+                p.fillRect(rect, ring)
+
+
+class AccentDialog(Dialog):
+    """Escolhe a cor de destaque numa matriz; o app inteiro muda na hora."""
+
+    def __init__(self, win):
+        super().__init__(win, "Cor de destaque", 520)
+        self.win = win
+        self.body.addWidget(
+            Text("Escolha a cor. Os tons mais claros e escuros e o tema escuro são calculados a partir dela.", 13, 400, alpha=0.7, wrap=True)
+        )
+        self.swatches = []
+        grid = QGridLayout()
+        grid.setSpacing(6)
+        for row, colors in enumerate(theme.swatches()):
+            for column, value in enumerate(colors):
+                swatch = Swatch(value)
+                swatch.clicked.connect(lambda _checked=False, v=value: self._pick(v))
+                grid.addWidget(swatch, row, column)
+                self.swatches.append(swatch)
+        self.body.addLayout(grid)
+        reset, done = Button("Vermelho original", "secondary"), Button("Pronto", "primary")
+        reset.clicked.connect(lambda: self._pick(""))
+        done.clicked.connect(self.accept)
+        self.add_actions(reset, None, done)
+        self._mark()
+
+    def _pick(self, value: str) -> None:
+        self.win.set_accent("" if value.lower() == theme.REFERENCE_ACCENT else value)
+        self._mark()
+
+    def _mark(self) -> None:
+        current = (theme.accent() or theme.REFERENCE_ACCENT).lower()
+        for swatch in self.swatches:
+            swatch.setChecked(swatch.value.lower() == current)
