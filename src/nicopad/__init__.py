@@ -1,3 +1,3 @@
 """nicoPad: toca sons do PC no seu microfone, um atalho global por som."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
