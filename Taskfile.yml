@@ -10,8 +10,14 @@ vars:
   SRC: src
   EXE: dist/nicopad/nicopad.exe
   SETUP: dist/nicopad-setup.exe
+  # Só built-ins: o sh embutido do Task no Windows não tem `grep`/`head` no PATH.
   VERSION:
-    sh: grep -oE '[0-9]+[.][0-9]+[.][0-9]+' src/nicopad/__init__.py | head -n1
+    sh: |
+      while IFS= read -r line; do
+        case "$line" in
+          __version__*) v=${line#*\"}; echo "${v%%\"*}" ;;
+        esac
+      done < src/nicopad/__init__.py
   # Inno Setup: instalação por usuário (local) ou do choco (CI)
   ISCC:
     sh: for p in "$LOCALAPPDATA/Programs/Inno Setup 6" "C:/Program Files (x86)/Inno Setup 6" "C:/Program Files/Inno Setup 6"; do [ -f "$p/ISCC.exe" ] && echo "$p/ISCC.exe" && break; done
