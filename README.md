@@ -206,14 +206,15 @@ SHA-256 antes de usar.
 | `task test`  | Verifica som, mistura, lista de aparelhos, pasta dos sons, perfil, motor de áudio e atalhos |
 | `task cable` | Copia e descompacta o instalador oficial do cabo de áudio (VB-Cable) na sua pasta           |
 
-| `task logo` | Redesenha a logo do app (`packaging/nicopad.png` e `packaging/nicopad.ico`) |
+| `task logo` | Refaz a logo a partir de `packaging/logo.jpeg` (`packaging/nicopad.png`, `nicopad-branco.png` e `nicopad.ico`) |
 | `task build` | Gera o app em `dist/nicopad/` (PyInstaller, pasta, sem console) |
 | `task installer` | Empacota `dist/nicopad/` em `dist/nicopad-setup.exe` (Inno Setup 6, por usuário, sem UAC) |
 | `task verify` | Roda a verificação dentro do `.exe` gerado |
 | `task clean` | Apaga `.venv`, `build/`, `dist/` e caches |
 
-`task build` roda `task logo` antes (para o ícone do `.exe`) e só recompila quando algum arquivo
-de `src/` muda (ou use `task build --force`).
+`task logo` só precisa rodar quando `packaging/logo.jpeg` ou `packaging/logo.py` mudam: os arquivos
+gerados (`nicopad.png`, `nicopad-branco.png` e `nicopad.ico`) vão no repositório.
+`task build` só recompila quando algum arquivo de `src/` ou da logo muda (ou use `task build --force`).
 O build usa uma lista de exclusões (scipy, matplotlib, pytest, setuptools...) para o `.exe`
 ficar enxuto, e embute as DLLs do PortAudio e do libsndfile.
 
@@ -262,8 +263,11 @@ src/nicopad/
   selftest.py   verificação automática do app compilado ou não
 packaging/nicopad.iss    receita do instalador (Inno Setup)
 packaging/nicopad.spec   receita do app (embute o ícone, a logo e o pacote do cabo)
-packaging/nicopad.ico    ícone do .exe (troque o arquivo para usar outro)
-packaging/nicopad.png    logo da janela e da bandeja (troque o arquivo para usar outro)
+packaging/logo.py        gera a logo a partir de packaging/logo.jpeg (`task logo`)
+packaging/logo.jpeg      arte de origem da logo
+packaging/nicopad.ico    ícone do .exe e do instalador (traço escuro, fundo transparente)
+packaging/nicopad.png    logo do tema claro: janela, bandeja e cabeçalho
+packaging/nicopad-branco.png  logo do tema escuro: janela e bandeja
 packaging/fonts/         fonte Archivo (licença OFL), embutida no .exe
 Taskfile.yml             setup, run, test, build, verify, clean
 ```

@@ -26,7 +26,7 @@ THEMES = {
         "accent_700": "#ffc4b8", "accent_800": "#ffe0d9", "neutral_900": "#2d2b2b",
     },
 }
-LOGO_TILE = "#ffffff"  # a logo tem fundo branco: o quadrado branco vale nos dois temas
+LOGO_TILE = "#ffffff"  # a logo é de traço escuro: o quadrado branco vale nos dois temas
 DISABLED_OPACITY = 0.45
 
 # ----------------------------------------------------------------------- cor de destaque
