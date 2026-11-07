@@ -27,7 +27,8 @@ def _image(path: Path | None):
 class Tray:
     """O ícone da bandeja, com «Abrir o nicoPad» e «Sair»."""
 
-    def __init__(self, logo: Path | None, on_open, on_quit):
+    def __init__(self, logo, on_open, on_quit):
+        """`logo` é chamado a cada desenho e devolve o arquivo do tema atual."""
         self.error = None
         self._logo = logo
         self._on_open = on_open
@@ -51,7 +52,7 @@ class Tray:
 
             icon = pystray.Icon(
                 "nicopad",
-                _image(self._logo),
+                _image(self._logo()),
                 "nicoPad",
                 pystray.Menu(
                     pystray.MenuItem("Abrir o nicoPad", self._open, default=True),
@@ -81,6 +82,16 @@ class Tray:
                 icon.stop()
             except Exception:
                 pass  # fechando o programa: um erro aqui não pode segurar a saída
+
+    def refresh(self) -> None:
+        """Redesenha o ícone com a logo do tema atual (trocar claro/escuro troca o traço)."""
+        icon = self._icon
+        if icon is None:
+            return
+        try:
+            icon.icon = _image(self._logo())
+        except Exception:
+            pass  # o ícone já está na bandeja: falhar o redesenho não pode derrubar o app
 
     def notify(self, message: str) -> None:
         """Recado da bandeja, quando o sistema souber mostrar (o Linux não mostra)."""

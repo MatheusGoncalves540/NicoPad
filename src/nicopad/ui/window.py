@@ -43,6 +43,8 @@ from nicopad.ui.widgets import Box, Button, Icon, Text, hbox, vbox
 from nicopad.ui.wizard import LogoTile, Wizard
 
 AUDIO_FILTER = "Áudio (*.wav *.mp3 *.ogg *.oga *.opus *.flac *.aiff *.aif);;Todos os arquivos (*.*)"
+# A logo é de traço e sem fundo: escura no tema claro, branca no escuro (janela e bandeja).
+LOGO_FILES = {"claro": "nicopad.png", "escuro": "nicopad-branco.png"}
 CABLE_URL = "https://vb-audio.com/Cable/"
 ESC = 0x1B
 CLIP_PREVIEW = "<prévia do corte>"  # caminho das vozes da prévia do corte (não é um arquivo)
@@ -130,7 +132,8 @@ class NicoPadApp(QMainWindow):
         self.last_folder = ""
         self.typing = False  # campo de texto em foco: as teclas não tocam sons
         self.view_mode = settings.view
-        self.logo = self._load_logo()
+        self.logos = {name: self._load_logo(file) for name, file in LOGO_FILES.items()}
+        self.logo = self.logos["claro"]  # no cabeçalho e no assistente a logo fica sobre um quadrado branco
 
         self._save_timer = QTimer(self, singleShot=True, interval=400)
         self._save_timer.timeout.connect(self._save)
@@ -142,14 +145,13 @@ class NicoPadApp(QMainWindow):
 
         # A bandeja é a porta de volta quando a janela fecha: sem ela, fechar fecha mesmo.
         self.tray = tray.Tray(
-            _asset("nicopad.png"),
+            lambda: _asset(LOGO_FILES[theme.name()]),
             lambda: self.bus.call.emit(self._show),
             lambda: self.bus.call.emit(self._quit),
         )
 
         self.setWindowTitle("nicoPad")
-        if self.logo is not None:
-            self.setWindowIcon(QIcon(self.logo))
+        self._apply_logo()
         self.setMinimumSize(*WINDOW_MIN)
         self.resize(*_window_size(settings.geometry))
         self._build()
@@ -175,12 +177,18 @@ class NicoPadApp(QMainWindow):
     # ---------------------------------------------------------------- interface
 
     @staticmethod
-    def _load_logo() -> QPixmap | None:
-        path = _asset("nicopad.png")
+    def _load_logo(name: str) -> QPixmap | None:
+        path = _asset(name)
         if path is None:
             return None
         pixmap = QPixmap()
         return pixmap if pixmap.loadFromData(path.read_bytes()) else None  # lido dos bytes: o caminho pode ter acentos
+
+    def _apply_logo(self) -> None:
+        """O ícone da janela acompanha o tema: traço escuro no claro e branco no escuro."""
+        logo = self.logos[theme.name()]
+        if logo is not None and not logo.isNull():
+            self.setWindowIcon(QIcon(logo))
 
     def _build(self) -> None:
         self.stack = QStackedWidget()
@@ -376,6 +384,8 @@ class NicoPadApp(QMainWindow):
     def apply_theme(self, name: str, accent: str | None = None) -> None:
         theme.apply(QApplication.instance(), name, accent)
         self._sync_theme_button()
+        self._apply_logo()
+        self.tray.refresh()
         for widget in self.findChildren(QWidget):
             widget.update()
 

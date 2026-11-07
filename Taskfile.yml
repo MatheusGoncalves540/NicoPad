@@ -56,12 +56,28 @@ tasks:
     cmds:
       - "PYTHONPATH={{.SRC}} {{.VENV_PY}} -m nicopad --selftest"
 
+  logo:
+    desc: Refaz a logo (packaging/nicopad.png, nicopad-branco.png e nicopad.ico) a partir de packaging/logo.jpeg
+    deps: [setup]
+    sources:
+      - packaging/logo.jpeg
+      - packaging/logo.py
+    generates:
+      - packaging/nicopad.png
+      - packaging/nicopad-branco.png
+      - packaging/nicopad.ico
+    cmds:
+      - "{{.VENV_PY}} packaging/logo.py"
+
   build:
     desc: Gera o app em dist/nicopad/ (pasta, sem instalador)
     deps: [setup]
     sources:
       - "{{.SRC}}/**/*.py"
       - packaging/nicopad.spec
+      - packaging/nicopad.png
+      - packaging/nicopad-branco.png
+      - packaging/nicopad.ico
       - packaging/fonts/*
     generates:
       - "{{.EXE}}"

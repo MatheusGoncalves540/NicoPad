@@ -208,10 +208,22 @@ def _extra_checks(check, wav) -> None:
         assert updater._parse("1.0.0") == updater._parse("1.0.0")
         return "versão comparada numericamente (não como texto), prefixo «v» ignorado"
 
+    def logo_images():
+        from PIL import Image
+
+        from nicopad import ui
+
+        for name in ("nicopad.png", "nicopad-branco.png"):
+            path = ui._asset(name)
+            assert path is not None, f"{name} não encontrada"
+            with Image.open(path) as image:
+                assert image.convert("RGBA").getchannel("A").getextrema() == (0, 255), f"{name} sem fundo transparente"
+        return "logo escura e clara embutidas, as duas com o fundo transparente"
+
     def tray_icon():
         from nicopad import tray, ui
 
-        icon = tray.Tray(ui._asset("nicopad.png"), lambda: None, lambda: None)
+        icon = tray.Tray(lambda: ui._asset("nicopad.png"), lambda: None, lambda: None)
         assert icon.start(), icon.error
         deadline = time.time() + 5
         while not icon.ok and time.time() < deadline:  # o backend avisa quando o ícone existe
@@ -248,6 +260,7 @@ def _extra_checks(check, wav) -> None:
     check("corte do som", trimming)
     check("download do youtube", youtube_url)
     check("verificação de versão", update_versions)
+    check("logo", logo_images)
     check("bandeja do sistema", tray_icon)
 
 
